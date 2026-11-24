@@ -158,11 +158,11 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
           }).catch(() => undefined);
         }
       };
-      const handleDelivered = (event: Ably.Message) => {
+      const handleDelivered = (event: AblyClientMessage) => {
         if ((event.data as { recipientId?: string }).recipientId !== chat.userId) return;
         setChats((current) => current.map((item) => item.id === chat.id ? { ...item, messages: item.messages.map((message) => message.mine ? { ...message, delivered: true } : message) } : item));
       };
-      const handleRead = (event: Ably.Message) => {
+      const handleRead = (event: AblyClientMessage) => {
         const payload = event.data as { messageIds?: string[]; readerId?: string };
         if (payload.readerId !== chat.userId) return;
         const ids = new Set(payload.messageIds ?? []);
