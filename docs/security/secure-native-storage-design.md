@@ -220,3 +220,24 @@ CI compilation is not a substitute for physical Android and iOS testing. A passi
 - [ ] Implement native storage in a later phase.
 - [ ] Complete physical Android/iOS tests.
 - [ ] Complete independent security review.
+
+
+## 13. Source verification addendum (2026-11-24)
+
+The following primary-source details were checked against current vendor documentation during this review:
+
+- The SQLCipher Android project currently documents Android API 23+ and the `net.zetetic:sqlcipher-android` Community Edition artifact. Its README demonstrates that the application supplies the database passphrase to the SQLCipher API; this design must separately protect that passphrase with the platform key store. The repository README is mutable, so pin a release/tag and verify the exact AAR and source before adoption.
+- SQLCipher's maintainers state that Keystore integration is an application integration responsibility, not functionality supplied by the SQLCipher Android library itself.
+- SQLCipher Community Edition may be used in open- and closed-source commercial apps under its BSD-style license, with required license/copyright notices in the app and documentation. Commercial/Enterprise offerings have separate terms. Legal review and the actual artifact's license notices remain mandatory.
+- Android Auto Backup requires both legacy `fullBackupContent` rules for Android 11 and lower and Android 12+ `dataExtractionRules` when supporting both OS ranges. Cloud backup and device-to-device transfer have separate rule sections. `noBackupFilesDir` is excluded by the platform, but test the exact generated Capacitor app and OEM transfer behavior.
+- Apple's `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` is available only while unlocked and does not migrate to a different device. `kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly` requires a passcode and its items are removed if the passcode is disabled. The selected class must match the product's foreground/background access policy.
+
+Verified primary references:
+- SQLCipher Android project and compatibility: https://github.com/sqlcipher/sqlcipher-android
+- SQLCipher Android Keystore responsibility: https://github.com/sqlcipher/sqlcipher-android/issues/51
+- SQLCipher license: https://www.zetetic.net/sqlcipher/license/
+- Android Auto Backup rules: https://developer.android.com/identity/data/autobackup
+- Apple Keychain accessibility values: https://developer.apple.com/documentation/security/item-attribute-keys-and-values
+- Apple Keychain accessibility policy: https://developer.apple.com/documentation/security/restricting-keychain-item-accessibility
+
+**Important:** The Android SQLCipher README and release information can change. This document intentionally does not pin a version or claim that the current latest artifact is approved. Exact version, checksum, license, ABI, NDK, Capacitor Gradle compatibility, iOS implementation, and reproducible build verification are still open gates.
