@@ -4,10 +4,16 @@ version = "0.1.0"
 edition = "2021"
 rust-version = "1.91"
 publish = false
-description = "Isolated OpenMLS compatibility spike for Binary Chat; not production cryptography."
+description = "Isolated OpenMLS and UniFFI compatibility spike for Binary Chat; not production cryptography."
 
-# The crate is intentionally a test harness only. The production library has
-# no runtime crypto API until the native storage and FFI boundaries are reviewed.
+[lib]
+crate-type = ["cdylib", "staticlib", "rlib"]
+
+[dependencies]
+uniffi = "=0.29.5"
+
+# OpenMLS remains test-only until native storage, lifecycle, and FFI boundaries
+# have passed their own security review.
 [dev-dependencies]
 openmls = { version = "=0.9.2", features = ["openmls_rust_crypto"] }
 openmls_rust_crypto = "=0.6.0"
