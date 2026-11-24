@@ -32,10 +32,19 @@ export async function GET(request: Request, context: RouteContext) {
     const filter: Record<string, unknown> = { conversationId: access.conversation._id };
     if (before && !Number.isNaN(Date.parse(before))) filter.createdAt = { $lt: new Date(before) };
     const messages = await access.db.collection("messages").find(filter).sort({ createdAt: -1 }).limit(50).toArray();
-    await access.db.collection("messages").updateMany(
+    const delivered = await access.db.collection("messages").updateMany(
       { conversationId: access.conversation._id, recipientId: user.id, deliveredAt: { $exists: false } },
       { $set: { deliveredAt: new Date() } },
     );
+    if (delivered.modifiedCount > 0) {
+      try {
+        await getAblyRest().channels.get(conversationChannel(conversationId)).publish("message.delivered", {
+          recipientId: user.id, deliveredAt: new Date(),
+        });
+      } catch (error) {
+        console.error("Delivery receipt realtime publish failed:", error instanceof Error ? error.message : "Unknown error");
+      }
+    }
     return NextResponse.json({ messages: messages.reverse().map((message) => ({
       id: message._id.toString(), text: message.text, senderId: message.senderId,
       recipientId: message.recipientId, createdAt: message.createdAt,
