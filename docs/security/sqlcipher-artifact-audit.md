@@ -11,7 +11,7 @@ SQLCipher Community Edition 4.20.0 is a plausible cross-platform candidate, with
 
 Reasons the gate remains closed:
 - Android's published artifact and public source are discoverable, but Binary Chat has not yet pinned and independently reproduced the exact AAR, transitive dependency graph, native ABI contents, submodule revisions, build provenance, and checksums.
-- The Apple Swift package is official and has a 4.20.0 release, but the Swift Package Index reports binary-only targets where source may not be available. We have not downloaded and inspected the exact 4.20.0 package archive, XCFramework slices, signatures/checksums, build provenance, or full license notices.
+- The Apple Swift package is official and has a 4.20.0 release. Its pinned `Package.swift` declares a binary XCFramework target and a SHA-256 checksum; GitHub release metadata reports the same digest for the 50,874,674-byte archive. This establishes a useful integrity check, but not source transparency, reproducible build provenance, code-signing assurance, or a review of the binary contents and license notices.
 - No reproducible build, SBOM, vulnerability review, independent source audit, or physical-device integration tests have been performed.
 - SQLCipher encrypts a database using a passphrase; it does not itself provide the Android Keystore/iOS Keychain key-wrapping and account/device lifecycle design required by Binary Chat.
 
@@ -37,7 +37,7 @@ Android's upstream integration guide lists:
 - Native library load via System.loadLibrary("sqlcipher")
 - Minimum Android API 23 and four listed ABIs.
 
-Apple's official Swift package README says to add the package through Swift Package Manager, import SQLCipher, and enable SQLITE_HAS_CODEC for Debug and Release. The package registry/index lists binary-only targets, so exact binary provenance is a release blocker until reviewed.
+Apple's pinned 4.20.0 `Package.swift` sets iOS 12 as its minimum platform, uses a SwiftPM `binaryTarget`, and pins `SQLCipher.xcframework.zip` with SHA-256 `1505174fe7f8a0fe81d6ebf87a64b17701b500c12a445ef6b68b9159f012d747`. GitHub release metadata reports the same SHA-256 and an archive size of 50,874,674 bytes. The package's test target defines `SQLITE_HAS_CODEC`; the production app must still verify the required build setting and linkage. The archive itself, XCFramework slices, signatures, build provenance, and license notices have not yet been inspected.
 
 ## 3. Release-channel assessment
 
@@ -61,7 +61,7 @@ Required before adoption:
 ## 5. Artifact/source integrity gates
 
 ### Android
-- Download the exact Maven Central AAR for 4.20.0 and record SHA-256.
+- Download the exact Maven Central AAR for 4.20.0 and record SHA-256. The GitHub `v4.20.0` source tag is shown as signed with a verified committer signature; this does not attest to the separately published Maven AAR.
 - Verify Maven POM, Gradle module metadata, signatures/checksums if published, and all transitive dependencies.
 - Inspect the AAR's classes, JNI libraries, ABI set, ELF metadata, exported symbols, and embedded license notices.
 - Pin and inspect the exact source tag and every submodule commit; identify the SQLCipher core and LibTomCrypt revisions.
@@ -69,8 +69,8 @@ Required before adoption:
 - Confirm minSdk 23 is compatible with the app's declared minSdk and supported devices.
 
 ### Apple
-- Resolve the exact 4.20.0 Swift package revision and download the full source archive and all binary artifacts.
-- Inspect Package.swift, package checksums, XCFramework slices, architectures, minimum OS versions, code signatures, module maps, and linker flags.
+- Resolve the exact 4.20.0 Swift package revision and download the full source archive and all binary artifacts. Record the manifest-pinned SHA-256 above and independently recompute it over the downloaded XCFramework archive.
+- Inspect Package.swift, XCFramework slices, architectures, minimum OS versions, code signatures, module maps, and linker flags. The manifest checksum and release asset digest currently match, but this does not establish who built the binary or from which source.
 - Determine whether binary-only targets prevent meaningful source-level review or reproducible builds; if so, keep NO-GO unless independent vendor assurance and artifact attestation are sufficient.
 - Verify no unexpected network/runtime downloads or scripts are executed during package resolution/build.
 - Confirm iOS simulator and physical-device architecture support separately.
