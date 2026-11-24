@@ -13,8 +13,8 @@ function secretKey() {
 
 export type SessionClaims = { userId: string };
 
-export async function createSession(userId: string, phone: string) {
-  const token = await new SignJWT({ userId, phone })
+export async function createSession(userId: string) {
+  const token = await new SignJWT({ userId })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(userId)
     .setIssuedAt()
@@ -47,8 +47,8 @@ export async function getSessionClaims(): Promise<SessionClaims | null> {
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, secretKey(), { algorithms: ["HS256"] });
-    if (typeof payload.userId !== "string" || typeof payload.phone !== "string") return null;
-    return { userId: payload.userId, phone: payload.phone };
+    if (typeof payload.userId !== "string") return null;
+    return { userId: payload.userId };
   } catch {
     return null;
   }
