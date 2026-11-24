@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth/session";
+import { consumeRateLimit } from "@/lib/auth/rate-limit";
 import { ensureMessagingIndexes, normalizeMemberKey } from "@/lib/messaging";
 
 export const runtime = "nodejs";
@@ -52,6 +53,8 @@ export async function POST(request: Request) {
     const body: unknown = await request.json().catch(() => null);
     const parsed = createSchema.safeParse(body);
     if (!parsed.success) return NextResponse.json({ error: "A valid contact user ID is required." }, { status: 400 });
+    const limit = await consumeRateLimit(`conversation-create:${user.id}`, 10, 60_000);
+    if (!limit.allowed) return NextResponse.json({ error: "Too many new conversations. Try again shortly." }, { status: 429 });
     if (parsed.data.userId === user.id) return NextResponse.json({ error: "You cannot start a conversation with yourself." }, { status: 400 });
 
     const db = await ensureMessagingIndexes();
