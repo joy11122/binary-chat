@@ -6,10 +6,9 @@ rust-version = "1.91"
 publish = false
 description = "Isolated OpenMLS compatibility spike for Binary Chat; not production cryptography."
 
-[dependencies]
-# Pin exact stable releases for this spike. Upgrade only with an explicit security review.
+# The crate is intentionally a test harness only. The production library has
+# no runtime crypto API until the native storage and FFI boundaries are reviewed.
+[dev-dependencies]
 openmls = { version = "=0.9.2", features = ["openmls_rust_crypto"] }
 openmls_rust_crypto = "=0.6.0"
 openmls_basic_credential = "=0.6.0"
-
-[dev-dependencies]
