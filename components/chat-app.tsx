@@ -236,6 +236,7 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
     setProfileOpen(true);
     setProfileError("");
     setProfileSuccess("");
+    setDeleteConfirmation("");
     setProfileLoading(true);
     try {
       const response = await fetch("/api/auth/me", { cache: "no-store" });
@@ -394,7 +395,7 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
       <section className="chat-panel">
         <header className="chat-header">
           {activeChat ? <><div className={`avatar avatar-${activeChat.color}`}>{activeChat.initials}{activeChat.online && <span className="online-dot" />}</div><div className="header-person"><strong>{activeChat.name}</strong><span><i className={activeChat.online ? "status-live" : ""} />{activeChat.status}</span></div></> : <div className="header-person"><strong>Welcome to Binary Chat</strong><span>Start a private conversation</span></div>}
-          <div className="header-actions"><button className="icon-button" onClick={() => { setProfileOpen(true); setProfileError(""); setProfileSuccess(""); }} aria-label="Open profile settings" title="Profile settings"><Settings2 size={17} /></button><div className="secure-pill"><LockKeyhole size={12} /> SESSION ACTIVE</div><button className="icon-button" onClick={signOut} aria-label="Sign out" title="Sign out"><LogOut size={18} /></button></div>
+          <div className="header-actions"><button className="icon-button" onClick={openProfileSettings} aria-label="Open profile settings" title="Profile settings"><Settings2 size={17} /></button><div className="secure-pill"><LockKeyhole size={12} /> SESSION ACTIVE</div><button className="icon-button" onClick={signOut} aria-label="Sign out" title="Sign out"><LogOut size={18} /></button></div>
         </header>
         <div className="chat-body">
           {activeChat ? <>
