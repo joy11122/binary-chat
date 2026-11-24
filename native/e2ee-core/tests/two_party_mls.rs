@@ -174,7 +174,7 @@ fn unrelated_group_cannot_decrypt_another_groups_message() {
     let suite = Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
     let (charlie_credential, charlie_signer) =
         credential(b"binary-chat-unrelated-charlie", suite, &charlie_provider);
-    let charlie_group = MlsGroup::new(
+    let mut charlie_group = MlsGroup::new(
         &charlie_provider,
         &charlie_signer,
         &MlsGroupCreateConfig::default(),
