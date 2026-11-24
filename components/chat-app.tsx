@@ -8,7 +8,7 @@ import { textToBinary } from "@/lib/binary";
 
 type ApiMember = { id: string; phone: string; displayName: string; avatarUrl: string };
 type ApiMessage = { id: string; text: string; senderId: string; recipientId: string; createdAt: string; deliveredAt?: string | null; readAt?: string | null; clientMessageId: string };
-type ChatMessage = { id: string; text: string; time: string; mine: boolean; read?: boolean; delivered?: boolean; createdAt: string };
+type ChatMessage = { id: string; text: string; time: string; mine: boolean; read?: boolean; delivered?: boolean; createdAt: string; clientMessageId?: string };
 type Conversation = { id: string; userId: string; name: string; initials: string; color: string; status: string; preview: string; time: string; unread: number; online: boolean; messages: ChatMessage[] };
 type Contact = { id: string; phone: string; displayName: string; avatarUrl: string };
 
@@ -124,13 +124,19 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
           time: payload.createdAt ? formatTime(payload.createdAt) : formatTime(new Date()),
           createdAt: payload.createdAt ?? new Date().toISOString(),
           delivered: Boolean(payload.deliveredAt), read: Boolean(payload.readAt),
+          clientMessageId: payload.clientMessageId,
         };
-        setChats((current) => current.map((item) => item.id === chat.id ? {
-          ...item,
-          preview: message.text,
-          time: message.time,
-          messages: item.messages.some((existing) => existing.id === message.id) ? item.messages : [...item.messages, message],
-        } : item));
+        setChats((current) => current.map((item) => {
+          if (item.id !== chat.id) return item;
+          const optimisticIndex = message.mine && message.clientMessageId
+            ? item.messages.findIndex((existing) => existing.id === message.clientMessageId || existing.clientMessageId === message.clientMessageId)
+            : -1;
+          const alreadySaved = item.messages.some((existing) => existing.id === message.id);
+          const messages = optimisticIndex >= 0
+            ? item.messages.map((existing, index) => index === optimisticIndex ? message : existing)
+            : alreadySaved ? item.messages : [...item.messages, message];
+          return { ...item, preview: message.text, time: message.time, messages };
+        }));
         if (payload.senderId !== userId && activeId === chat.id) {
           void fetch(`/api/conversations/${chat.id}/messages`, { cache: "no-store" }).then((response) => response.json()).then((data: { messages?: ApiMessage[] }) => {
             const ids = (data.messages ?? []).filter((item) => item.senderId !== userId && !item.readAt).map((item) => item.id);
@@ -214,7 +220,7 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
     setSending(true);
     setError("");
     const clientMessageId = crypto.randomUUID();
-    const optimistic: ChatMessage = { id: clientMessageId, text, time: formatTime(new Date()), createdAt: new Date().toISOString(), mine: true };
+    const optimistic: ChatMessage = { id: clientMessageId, clientMessageId, text, time: formatTime(new Date()), createdAt: new Date().toISOString(), mine: true };
     setChats((current) => current.map((chat) => chat.id === activeChat.id ? { ...chat, preview: text, time: optimistic.time, messages: [...chat.messages, optimistic] } : chat));
     setDraft("");
     try {
@@ -264,6 +270,7 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
       const response = await fetch("/api/conversations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: foundContact.id }) });
       const data = await response.json() as { conversation?: { id: string }; error?: string };
       if (!response.ok || !data.conversation) throw new Error(data.error ?? "Could not start conversation.");
+      await realtimeRef.current?.auth.authorize();
       await refreshConversations();
       setActiveId(data.conversation.id);
       setContactOpen(false);
