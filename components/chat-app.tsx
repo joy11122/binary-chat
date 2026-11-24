@@ -148,10 +148,11 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
           const messages = optimisticIndex >= 0
             ? item.messages.map((existing, index) => index === optimisticIndex ? message : existing)
             : alreadySaved ? item.messages : [...item.messages, message];
-          return { ...item, preview: message.text, time: message.time, messages };
+          return { ...item, preview: message.text, time: message.time, messages, unread: message.mine || activeId === chat.id ? 0 : item.unread + 1 };
         }));
-        if (payload.senderId !== userId && activeId === chat.id) {
+        if (payload.senderId !== userId) {
           void fetch(`/api/conversations/${chat.id}/messages`, { cache: "no-store" }).then((response) => response.json()).then((data: { messages?: ApiMessage[] }) => {
+            if (activeId !== chat.id) return;
             const ids = (data.messages ?? []).filter((item) => item.senderId !== userId && !item.readAt).map((item) => item.id);
             if (ids.length) void fetch(`/api/conversations/${chat.id}/messages`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messageIds: ids }) });
           }).catch(() => undefined);
@@ -312,7 +313,7 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
         <div className="chat-list">
           {loadingChats && <div className="empty-list"><LoaderCircle size={16} className="spin" /> Loading conversations</div>}
           {!loadingChats && filteredChats.length === 0 && <div className="empty-list">{query ? "No matching conversations" : "No conversations yet. Start one with +."}</div>}
-          {filteredChats.map((chat) => <button key={chat.id} className={`chat-row ${activeId === chat.id ? "selected" : ""}`} onClick={() => { setActiveId(chat.id); setRevealedId(null); }}><div className={`avatar avatar-${chat.color}`}>{chat.initials}{chat.online && <span className="online-dot" />}</div><span className="chat-row-copy"><strong>{chat.name}</strong><span>{chat.preview === "Start a conversation" ? chat.preview : textToBinary(chat.preview).slice(0, 36)}</span></span><span className="chat-row-meta"><time>{chat.time}</time></span></button>)}
+          {filteredChats.map((chat) => <button key={chat.id} className={`chat-row ${activeId === chat.id ? "selected" : ""}`} onClick={() => { setActiveId(chat.id); setRevealedId(null); setChats((current) => current.map((item) => item.id === chat.id ? { ...item, unread: 0 } : item)); }}><div className={`avatar avatar-${chat.color}`}>{chat.initials}{chat.online && <span className="online-dot" />}</div><span className="chat-row-copy"><strong>{chat.name}</strong><span>{chat.preview === "Start a conversation" ? chat.preview : textToBinary(chat.preview).slice(0, 36)}</span></span><span className="chat-row-meta"><time>{chat.time}</time></span></button>)}
         </div>
         <div className="sidebar-bottom"><div className="privacy-note"><div className="privacy-icon"><ShieldCheck size={17} /></div><div><strong>Your space, your rules.</strong><span>Privacy is not an add-on.</span></div></div><button className="settings-link"><Settings2 size={17} /> Settings <ChevronDown size={15} /></button></div>
       </aside>
