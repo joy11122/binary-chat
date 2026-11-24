@@ -6,12 +6,12 @@ import { sendPhoneOtp } from "@/lib/auth/otp-provider";
 export const runtime = "nodejs";
 
 function clientIp(request: Request) {
-  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "unknown";
 }
 
 export async function POST(request: Request) {
   try {
-    const body: unknown = await request.json();
+    const body: unknown = await request.json().catch(() => null);
     const parsed = sendOtpSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid phone number." }, { status: 400 });
