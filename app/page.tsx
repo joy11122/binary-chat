@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Bell, Check, CheckCheck, ChevronDown, CircleHelp, Eye, EyeOff, LockKeyhole, MessageCircle, MoreHorizontal, Pencil, Plus, Search, Send, Settings2, ShieldCheck, Smile, Sparkles, Users, Wifi, X } from "lucide-react";
+import { Bell, Check, CheckCheck, ChevronDown, CircleHelp, Eye, EyeOff, LockKeyhole, MessageCircle, MoreHorizontal, Plus, Search, Send, Settings2, ShieldCheck, Smile, Sparkles, Wifi, X } from "lucide-react";
 import { textToBinary } from "@/lib/binary";
 
 type ChatMessage = { id: string; text: string; time: string; mine: boolean; read?: boolean };
