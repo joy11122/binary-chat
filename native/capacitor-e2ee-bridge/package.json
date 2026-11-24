@@ -1,0 +1,16 @@
+{
+  "name": "@binary-chat/capacitor-e2ee-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Fail-closed native capability placeholder for Binary Chat; not production E2EE.",
+  "main": "src/index.ts",
+  "types": "src/definitions.ts",
+  "files": ["src", "android", "ios"],
+  "peerDependencies": {
+    "@capacitor/core": "^7.4.3"
+  },
+  "capacitor": {
+    "android": { "src": "android" },
+    "ios": { "src": "ios" }
+  }
+}
