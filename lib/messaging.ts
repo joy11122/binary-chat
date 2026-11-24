@@ -1,5 +1,7 @@
 import Ably from "ably";
 import { ObjectId } from "mongodb";
+import { conversationChannel, isObjectId, normalizeMemberKey } from "./messaging-utils";
+export { conversationChannel, isObjectId, normalizeMemberKey } from "./messaging-utils";
 import { getDb } from "@/lib/db";
 
 export type DirectConversation = {
@@ -10,10 +12,6 @@ export type DirectConversation = {
   updatedAt: Date;
   lastMessageAt?: Date;
 };
-
-export function normalizeMemberKey(ids: string[]) {
-  return [...new Set(ids)].sort().join(":");
-}
 
 export async function ensureMessagingIndexes() {
   const db = await getDb();
@@ -31,12 +29,4 @@ export function getAblyRest() {
   const key = process.env.ABLY_API_KEY;
   if (!key) throw new Error("REALTIME_PROVIDER_NOT_CONFIGURED");
   return new Ably.Rest({ key });
-}
-
-export function conversationChannel(id: string) {
-  return `conversation:${id}`;
-}
-
-export function isObjectId(value: string) {
-  return ObjectId.isValid(value) && new ObjectId(value).toString() === value;
 }
