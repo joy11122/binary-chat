@@ -1,7 +1,6 @@
 import Ably from "ably";
 import { ObjectId } from "mongodb";
 import { getDb } from "@/lib/db";
-import { getServerEnv } from "@/lib/env";
 
 export type DirectConversation = {
   _id: ObjectId;
