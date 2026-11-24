@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
 import { getCurrentUser } from "@/lib/auth/session";
+import { consumeRateLimit } from "@/lib/auth/rate-limit";
 import { getDb } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -9,6 +10,8 @@ export async function GET(request: Request) {
   try {
     const currentUser = await getCurrentUser();
     if (!currentUser) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+    const limit = await consumeRateLimit(`contact-lookup:${currentUser.id}`, 20, 60_000);
+    if (!limit.allowed) return NextResponse.json({ error: "Too many contact lookups. Try again shortly." }, { status: 429 });
     const rawPhone = new URL(request.url).searchParams.get("phone")?.trim() ?? "";
     const parsed = parsePhoneNumberFromString(rawPhone, "BD");
     if (!parsed?.isValid()) return NextResponse.json({ error: "Enter a complete valid phone number." }, { status: 400 });
