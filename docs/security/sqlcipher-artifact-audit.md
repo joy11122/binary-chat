@@ -64,12 +64,12 @@ Required before adoption:
 - Download the exact Maven Central AAR for 4.20.0 and record SHA-256. The GitHub `v4.20.0` source tag is shown as signed with a verified committer signature; this does not attest to the separately published Maven AAR.
 - Verify Maven POM, Gradle module metadata, signatures/checksums if published, and all transitive dependencies.
 - Inspect the AAR's classes, JNI libraries, ABI set, ELF metadata, exported symbols, and embedded license notices.
-- Pin and inspect the exact source tag and every submodule commit; identify the SQLCipher core and LibTomCrypt revisions.
+- The Android `v4.20.0` tag resolves to annotated tag object `fd9265cfca1e419c1887752b9fb754232628807f`; its checked-out SQLCipher core submodule is `355d4db92d3404e71faa8088d071a71d767807f4` and LibTomCrypt submodule is `476a9579ae94f32b9ea9e2747bfb04b302370259`. These immutable revisions are now recorded, but their source contents and build relationship to the Maven AAR remain unaudited.
 - Reproduce the release build where feasible and compare binary outputs or document why exact reproducibility is not possible.
 - Confirm minSdk 23 is compatible with the app's declared minSdk and supported devices.
 
 ### Apple
-- Resolve the exact 4.20.0 Swift package revision and download the full source archive and all binary artifacts. Record the manifest-pinned SHA-256 above and independently recompute it over the downloaded XCFramework archive.
+- The Apple `4.20.0` tag resolves to annotated tag object `900525bc279abae927d487cbea2f76296c5a2afb`. Download the full source archive and binary artifacts; record the manifest-pinned SHA-256 above and independently recompute it over the downloaded XCFramework archive.
 - Inspect Package.swift, XCFramework slices, architectures, minimum OS versions, code signatures, module maps, and linker flags. The manifest checksum and release asset digest currently match, but this does not establish who built the binary or from which source.
 - Determine whether binary-only targets prevent meaningful source-level review or reproducible builds; if so, keep NO-GO unless independent vendor assurance and artifact attestation are sufficient.
 - Verify no unexpected network/runtime downloads or scripts are executed during package resolution/build.
@@ -106,8 +106,8 @@ SQLCipher's database passphrase must be a cryptographically random per-install s
 ## 8. Go / no-go checklist
 
 - [ ] Exact Android 4.20.0 AAR SHA-256 and provenance archived.
-- [ ] Android POM, transitive dependencies, JNI/ABI, source tag, and submodule commits audited.
-- [ ] Exact Apple 4.20.0 package revision, XCFramework binaries, checksums, signatures, and deployment targets audited.
+- [ ] Android POM, transitive dependencies, JNI/ABI, source tag (`fd9265cf...`), SQLCipher submodule (`355d4db9...`), and LibTomCrypt submodule (`476a9579...`) audited.
+- [ ] Exact Apple 4.20.0 package tag (`900525bc...`), XCFramework binaries, checksums, signatures, and deployment targets audited.
 - [ ] Binary-only Apple artifact review blocker resolved with adequate assurance.
 - [ ] Exact Community Edition licenses and all third-party notices reviewed.
 - [ ] In-app attribution plan approved.
