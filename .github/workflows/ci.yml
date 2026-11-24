@@ -32,6 +32,9 @@ jobs:
       - name: Run OpenMLS protocol tests
         working-directory: native/e2ee-core
         run: cargo test --locked --all-targets
+      - name: Build UniFFI native library
+        working-directory: native/e2ee-core
+        run: cargo build --locked --release
 
   verify:
     runs-on: ubuntu-latest
