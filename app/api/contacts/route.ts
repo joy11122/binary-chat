@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ObjectId } from "mongodb";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
 import { getCurrentUser } from "@/lib/auth/session";
 import { consumeRateLimit } from "@/lib/auth/rate-limit";
@@ -17,7 +18,7 @@ export async function GET(request: Request) {
     if (!parsed?.isValid()) return NextResponse.json({ error: "Enter a complete valid phone number." }, { status: 400 });
     const db = await getDb();
     const contact = await db.collection("users").findOne(
-      { phone: parsed.number, _id: { $ne: currentUser.id } },
+      { phone: parsed.number, _id: { $ne: new ObjectId(currentUser.id) } },
       { projection: { phone: 1, displayName: 1, avatarUrl: 1 } },
     );
     if (!contact || contact._id.toString() === currentUser.id) return NextResponse.json({ contact: null });
