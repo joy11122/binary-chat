@@ -5,12 +5,11 @@ import { consumeRateLimit } from "@/lib/auth/rate-limit";
 import { verifyPhoneOtp } from "@/lib/auth/otp-provider";
 import { createSession } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
+import { getClientIp } from "@/lib/auth/request";
 
 export const runtime = "nodejs";
 
-function clientIp(request: Request) {
-  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "unknown";
-}
+
 
 export async function POST(request: Request) {
   try {
@@ -21,7 +20,7 @@ export async function POST(request: Request) {
     }
 
     const { phone, code } = parsed.data;
-    const ip = clientIp(request);
+    const ip = getClientIp(request);
     const [phoneLimit, ipLimit] = await Promise.all([
       consumeRateLimit(`otp-verify-phone:${phone}`, 5, 15 * 60 * 1000),
       consumeRateLimit(`otp-verify-ip:${ip}`, 20, 15 * 60 * 1000),
