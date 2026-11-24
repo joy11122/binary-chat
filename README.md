@@ -30,6 +30,7 @@ A privacy-first messaging experience built with Next.js, TypeScript, and Capacit
 | `TWILIO_ACCOUNT_SID` | Twilio account SID |
 | `TWILIO_AUTH_TOKEN` | Twilio API auth token |
 | `TWILIO_VERIFY_SERVICE_SID` | Twilio Verify service SID |
+| `ABLY_API_KEY` | Ably server API key (required for realtime events) |
 
 Generate a session secret with:
 
@@ -60,4 +61,15 @@ GitHub Actions runs these checks on pushes and pull requests to `main`.
 - Hashed fixed-window OTP rate-limit keys with MongoDB TTL cleanup
 - Protected chat home, sign-in page, account lookup and sign-out endpoint
 
-Real-time chat persistence, contact discovery, delivery receipts, push notifications, end-to-end encryption, account deletion and full native builds remain future tasks.
+## Phase 1.3: messaging backend foundation
+
+- MongoDB-backed direct conversations and message history
+- Exact-phone contact discovery for registered users
+- Idempotent message creation and server-side membership checks
+- Read receipt API and delivery timestamps
+- Ably token endpoint with per-conversation subscribe/presence capabilities
+- Server publishes message and read events after database writes
+
+Create an Ably app and API key, then set `ABLY_API_KEY` in the deployment environment. The Ably Free package currently allows up to 200 concurrent connections and 6 million messages per month; it is intended for experimentation and proof-of-concept use, not a production SLA. See [Ably pricing](https://ably.com/pricing/).
+
+Messages are currently stored as plaintext in MongoDB. Binary display is not encryption. End-to-end encryption, native builds, account deletion, push notifications, and complete realtime UI integration are not yet complete.
