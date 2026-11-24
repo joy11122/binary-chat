@@ -57,7 +57,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Could not create your account. Please try again." }, { status: 500 });
     }
 
-    await createSession(userId.toString(), phone);
+    await createSession(userId.toString());
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("OTP verification failed:", error instanceof Error ? error.message : "Unknown error");
