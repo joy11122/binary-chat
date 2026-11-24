@@ -7,7 +7,7 @@
 
 ## Executive decision
 
-Select **OpenMLS 0.10.0** as the primary candidate for a time-boxed native integration spike.
+Select OpenMLS as the primary candidate for a time-boxed native integration spike. Version pinning is subject to the release-availability clarification below.
 
 This is a candidate selection, not a claim that Binary Chat is encrypted. Do not add OpenMLS to the production Next.js dependency graph, do not modify current message persistence, and do not enable E2EE for users in this phase.
 
@@ -28,8 +28,8 @@ Why OpenMLS:
 
 ## Exact version and security advisory policy
 
-- Spike baseline: **OpenMLS 0.10.0**, released 2026-11-23. Do not use 0.9.0: later advisories affected it.
-- The 0.10.0 changelog explicitly lists fixes for:
+- Initial Rust compatibility spike: **OpenMLS 0.9.2** with `openmls_rust_crypto` 0.6.0 and `openmls_basic_credential` 0.6.0, all pinned exactly. The upstream changelog lists 0.10.0 dated 2026-11-23, but the published crates.io/docs.rs version index currently exposes 0.10.0-rc.1 as a prerelease and 0.9.2 as the latest stable release. Do not build a production dependency on an unpublished or prerelease artifact. Re-check the crates.io release and matching supporting-crate versions before upgrading to 0.10.0 stable.
+- The upstream 0.10.0 changelog explicitly lists fixes for (these fixes are not assumed to be present in the stable 0.9.2 spike baseline):
   - GHSA-gc79-23g3-8g52 — unbounded recursion in extension decoding (High).
   - GHSA-p276-g3f3-wwgh — rejected private messages advancing a sender ratchet (Low).
   - GHSA-94v4-rg25-x625 — removed leaves reappearing after a particular external commit (Moderate).
@@ -130,4 +130,11 @@ No production rollout until all gates pass:
 - Mozilla UniFFI: https://github.com/mozilla/uniffi-rs
 - Capacitor native plugin model: https://capacitorjs.com/docs/plugins
 
-**Final decision:** OpenMLS 0.10.0 is the selected protocol candidate for Phase 1.6B native prototyping only. Production E2EE remains blocked on physical-device interoperability, secure storage, lifecycle, independent review and server ciphertext migration gates.
+**Final decision:** OpenMLS is the selected protocol candidate. Phase 1.6B starts against the latest published stable crate set (0.9.2 / 0.6.0 supporting crates) until 0.10.0 stable is verifiably available. Production E2EE remains blocked on physical-device interoperability, secure storage, lifecycle, independent review and server ciphertext migration gates.
+
+
+## Phase 1.6B implementation note (2026-11-24)
+
+The repository now contains an isolated Rust crate at `native/e2ee-core`. It pins OpenMLS 0.9.2, `openmls_rust_crypto` 0.6.0 and `openmls_basic_credential` 0.6.0 exactly while upstream's 0.10.0 release availability is reconciled. The first CI spike validates two independent in-memory providers, two-member group creation/join, application-message encryption/decryption, tamper rejection, replay rejection and unrelated-group rejection.
+
+The test provider is memory-only and exists solely for protocol API validation. It is not persistent, does not protect keys at rest and is not a production storage provider. No UniFFI, Capacitor bridge, API, database, Ably or production message-path integration is included. Cargo.lock is generated during CI for this spike; a reviewed, committed lockfile and dependency audit are required before any production/native integration.
