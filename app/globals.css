@@ -63,3 +63,5 @@
 .profile-account-meta small{color:var(--dim);font-size:10px}
 .contact-form input:focus{outline:1px solid rgba(139,255,181,.4);border-color:rgba(139,255,181,.4)}
 .contact-form button:disabled{opacity:.55;cursor:not-allowed}
+
+.profile-loading{margin:12px 0 0;color:var(--muted);font-size:11px}
