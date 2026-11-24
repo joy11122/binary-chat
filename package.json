@@ -21,7 +21,8 @@
     "mongodb": "^6.20.0",
     "jose": "^6.1.0",
     "libphonenumber-js": "^1.12.22",
-    "zod": "^3.25.76"
+    "zod": "^3.25.76",
+    "ably": "^2.30.0"
   },
   "devDependencies": {
     "@capacitor/cli": "^7.4.3",
