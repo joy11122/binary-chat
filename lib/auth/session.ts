@@ -11,7 +11,7 @@ function secretKey() {
   return new TextEncoder().encode(getServerEnv().SESSION_SECRET);
 }
 
-export type SessionClaims = { userId: string; phone: string };
+export type SessionClaims = { userId: string };
 
 export async function createSession(userId: string, phone: string) {
   const token = await new SignJWT({ userId, phone })
@@ -59,7 +59,7 @@ export async function getCurrentUser() {
   if (!claims || !ObjectId.isValid(claims.userId)) return null;
   const db = await getDb();
   const user = await db.collection("users").findOne(
-    { _id: new ObjectId(claims.userId), phone: claims.phone },
+    { _id: new ObjectId(claims.userId) },
     { projection: { phone: 1, displayName: 1, avatarUrl: 1, createdAt: 1 } },
   );
   if (!user) return null;
