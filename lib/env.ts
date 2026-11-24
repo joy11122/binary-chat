@@ -7,6 +7,7 @@ const envSchema = z.object({
   TWILIO_ACCOUNT_SID: z.string().startsWith("AC"),
   TWILIO_AUTH_TOKEN: z.string().min(1),
   TWILIO_VERIFY_SERVICE_SID: z.string().startsWith("VA"),
+  ABLY_API_KEY: z.string().min(1).optional(),
 });
 
 export function getServerEnv() {
