@@ -37,12 +37,22 @@ export async function POST(request: Request) {
 
     const db = await getDb();
     const now = new Date();
-    const result = await db.collection("users").findOneAndUpdate(
-      { phone },
-      { $set: { phone, lastLoginAt: now, updatedAt: now }, $setOnInsert: { createdAt: now } },
-      { upsert: true, returnDocument: "after" },
-    );
-    const userId = result?._id;
+    let userId: ObjectId | undefined;
+    try {
+      const result = await db.collection("users").findOneAndUpdate(
+        { phone },
+        { $set: { phone, lastLoginAt: now, updatedAt: now }, $setOnInsert: { createdAt: now } },
+        { upsert: true, returnDocument: "after" },
+      );
+      if (result?._id instanceof ObjectId) userId = result._id;
+    } catch (databaseError) {
+      if (typeof databaseError === "object" && databaseError !== null && "code" in databaseError && databaseError.code === 11000) {
+        const existing = await db.collection("users").findOne({ phone }, { projection: { _id: 1 } });
+        if (existing?._id instanceof ObjectId) userId = existing._id;
+      } else {
+        throw databaseError;
+      }
+    }
     if (!(userId instanceof ObjectId)) {
       return NextResponse.json({ error: "Could not create your account. Please try again." }, { status: 500 });
     }
