@@ -53,3 +53,13 @@
 .spin{animation:binary-spin 1s linear infinite}
 @keyframes binary-spin{to{transform:rotate(360deg)}}
 @media(max-width:680px){.inline-error{margin:0 12px 8px}.contact-dialog{padding:20px}.empty-welcome{min-height:250px}}
+
+
+/* Profile settings dialog */
+.profile-success{margin:12px 0 0;color:#9be5b1;font-size:11px;line-height:1.5}
+.profile-account-meta{margin-top:18px;padding:12px;border:1px solid var(--line);border-radius:10px;display:flex;flex-direction:column;gap:5px;background:rgba(255,255,255,.02)}
+.profile-account-meta span{color:var(--dim);font:9px "DM Mono",monospace;letter-spacing:1px}
+.profile-account-meta strong{font-size:11px;font-weight:600}
+.profile-account-meta small{color:var(--dim);font-size:10px}
+.contact-form input:focus{outline:1px solid rgba(139,255,181,.4);border-color:rgba(139,255,181,.4)}
+.contact-form button:disabled{opacity:.55;cursor:not-allowed}
