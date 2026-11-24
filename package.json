@@ -22,7 +22,8 @@
     "jose": "^6.1.0",
     "libphonenumber-js": "^1.12.22",
     "zod": "^3.25.76",
-    "ably": "^2.30.0"
+    "ably": "^2.30.0",
+    "@binary-chat/capacitor-e2ee-bridge": "file:./native/capacitor-e2ee-bridge"
   },
   "devDependencies": {
     "@capacitor/cli": "^7.4.3",
