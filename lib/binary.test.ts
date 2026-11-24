@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { binaryToText, textToBinary } from "@/lib/binary";
+import { binaryToText, textToBinary } from "./binary";
 
 describe("UTF-8 binary conversion", () => {
   it("encodes ASCII as eight-bit byte groups", () => {
