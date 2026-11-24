@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, Binary, CheckCircle2, LockKeyhole, MessageCircle, ShieldCheck } from "lucide-react";
 
@@ -15,7 +15,7 @@ export default function PhoneAuthForm() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
-  async function requestCode(event: React.FormEvent<HTMLFormElement>) {
+  async function requestCode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true); setError(""); setNotice("");
     try {
