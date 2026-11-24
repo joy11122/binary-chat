@@ -1,7 +1,7 @@
 use openmls::prelude::{
-    tls_codec::*, BasicCredential, Ciphersuite, CredentialWithKey, MlsGroup,
-    MlsGroupCreateConfig, MlsGroupJoinConfig, MlsMessageBodyIn, MlsMessageIn,
-    OpenMlsProvider, ProcessedMessageContent, ProtocolMessage, StagedWelcome,
+    tls_codec::*, BasicCredential, Ciphersuite, CredentialWithKey, MlsGroup, MlsGroupCreateConfig,
+    MlsGroupJoinConfig, MlsMessageBodyIn, MlsMessageIn, OpenMlsProvider, ProcessedMessageContent,
+    ProtocolMessage, StagedWelcome,
 };
 use openmls_basic_credential::SignatureKeyPair;
 use openmls_rust_crypto::OpenMlsRustCrypto;
@@ -44,12 +44,7 @@ fn two_party_group() -> (
         credential(b"binary-chat-test-bob", ciphersuite, &bob_provider);
 
     let bob_key_package = openmls::prelude::KeyPackage::builder()
-        .build(
-            ciphersuite,
-            &bob_provider,
-            &bob_signer,
-            bob_credential,
-        )
+        .build(ciphersuite, &bob_provider, &bob_signer, bob_credential)
         .expect("Bob key package should be created");
 
     let mut alice_group = MlsGroup::new(
@@ -75,8 +70,8 @@ fn two_party_group() -> (
     let welcome_bytes = welcome
         .tls_serialize_detached()
         .expect("Welcome should serialize");
-    let welcome_message = MlsMessageIn::tls_deserialize_exact(&welcome_bytes)
-        .expect("Welcome should deserialize");
+    let welcome_message =
+        MlsMessageIn::tls_deserialize_exact(&welcome_bytes).expect("Welcome should deserialize");
     let welcome = match welcome_message.extract() {
         MlsMessageBodyIn::Welcome(message) => message,
         _ => panic!("Expected an MLS Welcome message"),
@@ -94,7 +89,13 @@ fn two_party_group() -> (
         .into_group(&bob_provider)
         .expect("Bob should join the group");
 
-    (alice_provider, bob_provider, alice_signer, alice_group, bob_group)
+    (
+        alice_provider,
+        bob_provider,
+        alice_signer,
+        alice_group,
+        bob_group,
+    )
 }
 
 fn protocol_message(bytes: &[u8]) -> ProtocolMessage {
@@ -106,8 +107,7 @@ fn protocol_message(bytes: &[u8]) -> ProtocolMessage {
 
 #[test]
 fn two_independent_clients_exchange_authenticated_ciphertext() {
-    let (alice_provider, bob_provider, alice_signer, mut alice, mut bob) =
-        two_party_group();
+    let (alice_provider, bob_provider, alice_signer, mut alice, mut bob) = two_party_group();
     let plaintext = b"Binary Chat MLS spike: hello from Alice";
 
     let ciphertext = alice
@@ -164,8 +164,7 @@ fn modified_ciphertext_is_rejected() {
 
 #[test]
 fn unrelated_group_cannot_decrypt_another_groups_message() {
-    let (alice_provider, _bob_provider, alice_signer, mut alice, _bob) =
-        two_party_group();
+    let (alice_provider, _bob_provider, alice_signer, mut alice, _bob) = two_party_group();
     let message = alice
         .create_message(&alice_provider, &alice_signer, b"private to Alice's group")
         .expect("Alice should create message")
