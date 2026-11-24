@@ -12,5 +12,4 @@
 pub const OPENMLS_SPIKE_VERSION: &str = "0.9.2";
 
 /// The RFC 9420 mandatory-to-implement X25519 / AES-128-GCM ciphersuite.
-pub const MLS_CIPHERSUITE: &str =
-    "MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519";
+pub const MLS_CIPHERSUITE: &str = "MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519";
