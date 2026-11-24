@@ -136,8 +136,7 @@ fn two_independent_clients_exchange_authenticated_ciphertext() {
 
 #[test]
 fn modified_ciphertext_is_rejected() {
-    let (alice_provider, bob_provider, alice_signer, mut alice, mut bob) =
-        two_party_group();
+    let (alice_provider, bob_provider, alice_signer, mut alice, mut bob) = two_party_group();
     let ciphertext = alice
         .create_message(&alice_provider, &alice_signer, b"tamper me")
         .expect("Alice should create message")
