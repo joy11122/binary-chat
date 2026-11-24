@@ -27,7 +27,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -47,7 +46,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
       - run: npm install --no-audit --no-fund
       - run: npx cap add ios
       - run: npx cap sync ios
