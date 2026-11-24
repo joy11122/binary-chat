@@ -8,7 +8,7 @@ let package = Package(
         .library(name: "BinaryChatE2EEBridge", targets: ["BinaryChatE2EEBridge"])
     ],
     dependencies: [
-        .package(name: "Capacitor", path: "../../../ios/Capacitor")
+        .package(name: "Capacitor", path: "../../../node_modules/@capacitor/ios")
     ],
     targets: [
         .target(
