@@ -1,10 +1,7 @@
-use openmls::{
-    prelude::{
-        tls_codec::*, BasicCredential, Ciphersuite, CredentialType, CredentialWithKey,
-        MlsGroup, MlsGroupCreateConfig, MlsGroupJoinConfig, MlsMessageBodyIn, MlsMessageIn,
-        OpenMlsProvider, ProcessedMessageContent, ProtocolMessage, SignatureScheme,
-        StagedWelcome,
-    },
+use openmls::prelude::{
+    tls_codec::*, BasicCredential, Ciphersuite, CredentialWithKey, MlsGroup,
+    MlsGroupCreateConfig, MlsGroupJoinConfig, MlsMessageBodyIn, MlsMessageIn,
+    OpenMlsProvider, ProcessedMessageContent, ProtocolMessage, StagedWelcome,
 };
 use openmls_basic_credential::SignatureKeyPair;
 use openmls_rust_crypto::OpenMlsRustCrypto;
@@ -130,7 +127,6 @@ fn two_independent_clients_exchange_authenticated_ciphertext() {
         _ => panic!("Expected an authenticated application message"),
     }
 
-    // The same sender/epoch/generation message must not be accepted twice.
     assert!(
         bob.process_message(&bob_provider, protocol_message(&ciphertext))
             .is_err(),
@@ -140,45 +136,35 @@ fn two_independent_clients_exchange_authenticated_ciphertext() {
 
 #[test]
 fn modified_ciphertext_is_rejected() {
-    let (alice_provider, bob_provider, alice_signer, _alice, mut bob) =
+    let (alice_provider, bob_provider, alice_signer, mut alice, mut bob) =
         two_party_group();
-
-    let ciphertext = {
-        // Re-create a sender group for an isolated tamper test.
-        let (sender_credential, sender_signer) =
-            credential(b"binary-chat-tamper-sender", Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519, &alice_provider);
-        let mut sender = MlsGroup::new(
-            &alice_provider,
-            &sender_signer,
-            &MlsGroupCreateConfig::default(),
-            sender_credential,
-        )
-        .expect("sender group should be created");
-        let _ = (&mut bob, &alice_signer);
-        sender
-            .create_message(&alice_provider, &sender_signer, b"tamper me")
-            .expect("sender should create message")
-            .to_bytes()
-            .expect("message should serialize")
-    };
+    let ciphertext = alice
+        .create_message(&alice_provider, &alice_signer, b"tamper me")
+        .expect("Alice should create message")
+        .to_bytes()
+        .expect("message should serialize");
 
     let mut tampered = ciphertext;
     let last = tampered.len() - 1;
     tampered[last] ^= 0x01;
 
-    if let Ok(message) = MlsMessageIn::tls_deserialize_exact(&tampered) {
-        if let Ok(protocol) = message.try_into_protocol_message() {
-            assert!(
-                bob.process_message(&bob_provider, protocol).is_err(),
-                "modified ciphertext must fail authentication or group validation"
-            );
-        }
-    }
+    let rejected = match MlsMessageIn::tls_deserialize_exact(&tampered) {
+        Err(_) => true,
+        Ok(message) => match message.try_into_protocol_message() {
+            Err(_) => true,
+            Ok(protocol) => bob.process_message(&bob_provider, protocol).is_err(),
+        },
+    };
+
+    assert!(
+        rejected,
+        "modified ciphertext must fail decoding, authentication, or group validation"
+    );
 }
 
 #[test]
 fn unrelated_group_cannot_decrypt_another_groups_message() {
-    let (alice_provider, bob_provider, alice_signer, mut alice, _bob) =
+    let (alice_provider, _bob_provider, alice_signer, mut alice, _bob) =
         two_party_group();
     let message = alice
         .create_message(&alice_provider, &alice_signer, b"private to Alice's group")
@@ -204,7 +190,4 @@ fn unrelated_group_cannot_decrypt_another_groups_message() {
             .is_err(),
         "a different MLS group must reject the ciphertext"
     );
-
-    // Keep the independently-owned second provider alive through the test.
-    let _ = bob_provider;
 }
