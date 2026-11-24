@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Ably from "ably";
+import { loadAblyBrowserSdk, type AblyClientMessage, type AblyPresenceMessage, type AblyRealtimeClient } from "@/lib/ably-browser";
 import { Bell, Check, CheckCheck, ChevronDown, CircleHelp, Eye, EyeOff, LockKeyhole, MessageCircle, MoreHorizontal, Plus, Search, Send, Settings2, ShieldCheck, Smile, Sparkles, Wifi, X, LogOut, LoaderCircle, UserRoundPlus } from "lucide-react";
 import { textToBinary } from "@/lib/binary";
 
@@ -35,7 +35,7 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
   const [contactError, setContactError] = useState("");
   const [foundContact, setFoundContact] = useState<Contact | null>(null);
   const [onlineUsers, setOnlineUsers] = useState<Record<string, boolean>>({});
-  const realtimeRef = useRef<Ably.Realtime | null>(null);
+  const realtimeRef = useRef<AblyRealtimeClient | null>(null);
   const subscribedRef = useRef<Set<string>>(new Set());
 
   const activeChat = chats.find((chat) => chat.id === activeId) ?? null;
@@ -89,23 +89,36 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
   }, [revealedId]);
 
   useEffect(() => {
-    let disposed = false;
-    const realtime = new Ably.Realtime({ authUrl: "/api/realtime/token", authMethod: "GET" });
-    realtimeRef.current = realtime;
+    let cancelled = false;
+    let realtime: AblyRealtimeClient | null = null;
+    const subscribed = subscribedRef.current;
     const onConnected = () => setRealtimeStatus("connected");
+    const onConnecting = () => setRealtimeStatus("connecting");
     const onDisconnected = () => setRealtimeStatus("offline");
-    realtime.connection.on("connected", onConnected);
-    realtime.connection.on("disconnected", onDisconnected);
-    realtime.connection.on("failed", onDisconnected);
+
+    void loadAblyBrowserSdk().then(() => {
+      if (cancelled || !window.Ably) return;
+      realtime = new window.Ably.Realtime({ authUrl: "/api/realtime/token", authMethod: "GET" });
+      realtimeRef.current = realtime;
+      realtime.connection.on("connected", onConnected);
+      realtime.connection.on("connecting", onConnecting);
+      realtime.connection.on("disconnected", onDisconnected);
+      realtime.connection.on("failed", onDisconnected);
+    }).catch(() => {
+      if (!cancelled) setRealtimeStatus("offline");
+    });
+
     return () => {
-      disposed = true;
-      void disposed;
-      realtime.connection.off("connected", onConnected);
-      realtime.connection.off("disconnected", onDisconnected);
-      realtime.connection.off("failed", onDisconnected);
-      realtime.close();
+      cancelled = true;
+      if (realtime) {
+        realtime.connection.off("connected", onConnected);
+        realtime.connection.off("connecting", onConnecting);
+        realtime.connection.off("disconnected", onDisconnected);
+        realtime.connection.off("failed", onDisconnected);
+        realtime.close();
+      }
       realtimeRef.current = null;
-      subscribedRef.current.clear();
+      subscribed.clear();
     };
   }, []);
 
@@ -116,7 +129,7 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
       if (subscribedRef.current.has(chat.id)) continue;
       const channel = realtime.channels.get(`conversation:${chat.id}`);
       subscribedRef.current.add(chat.id);
-      const handleMessage = (event: Ably.Message) => {
+      const handleMessage = (event: AblyClientMessage) => {
         const payload = event.data as Partial<ApiMessage>;
         if (typeof payload.id !== "string" || typeof payload.text !== "string" || typeof payload.senderId !== "string") return;
         const message: ChatMessage = {
@@ -154,7 +167,7 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
         const ids = new Set(payload.messageIds ?? []);
         setChats((current) => current.map((item) => item.id === chat.id ? { ...item, messages: item.messages.map((message) => ids.has(message.id) ? { ...message, delivered: true, read: true } : message) } : item));
       };
-      const handlePresence = (event: Ably.PresenceMessage) => {
+      const handlePresence = (event: AblyPresenceMessage) => {
         const memberId = event.clientId;
         if (!memberId || memberId === userId) return;
         setOnlineUsers((current) => ({ ...current, [memberId]: event.action !== "leave" && event.action !== "absent" }));
@@ -170,14 +183,16 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
     }
   }, [chats, activeId, realtimeStatus, userId]);
 
+  const activeConversationId = activeChat?.id;
+
   useEffect(() => {
-    if (!activeChat) return;
+    if (!activeConversationId) return;
     let cancelled = false;
     setLoadingMessages(true);
     setRevealedId(null);
     (async () => {
       try {
-        const response = await fetch(`/api/conversations/${activeChat.id}/messages`, { cache: "no-store" });
+        const response = await fetch(`/api/conversations/${activeConversationId}/messages`, { cache: "no-store" });
         const data = await response.json() as { messages?: ApiMessage[]; error?: string };
         if (!response.ok) throw new Error(data.error ?? "Could not load messages.");
         const messages = (data.messages ?? []).map((item) => ({
@@ -185,10 +200,10 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
           createdAt: item.createdAt, delivered: Boolean(item.deliveredAt), read: Boolean(item.readAt),
         }));
         if (!cancelled) {
-          setChats((current) => current.map((chat) => chat.id === activeChat.id ? { ...chat, messages, preview: messages.at(-1)?.text ?? "Start a conversation" } : chat));
+          setChats((current) => current.map((chat) => chat.id === activeConversationId ? { ...chat, messages, preview: messages.at(-1)?.text ?? "Start a conversation" } : chat));
           const unreadIds = (data.messages ?? []).filter((item) => item.senderId !== userId && !item.readAt).map((item) => item.id);
           if (unreadIds.length) {
-            await fetch(`/api/conversations/${activeChat.id}/messages`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messageIds: unreadIds }) });
+            await fetch(`/api/conversations/${activeConversationId}/messages`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messageIds: unreadIds }) });
           }
         }
       } catch (cause) {
@@ -198,7 +213,7 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
       }
     })();
     return () => { cancelled = true; };
-  }, [activeChat?.id, userId]);
+  }, [activeConversationId, userId]);
 
   useEffect(() => {
     setChats((current) => current.map((chat) => {
@@ -224,7 +239,7 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
     setChats((current) => current.map((chat) => chat.id === activeChat.id ? { ...chat, preview: text, time: optimistic.time, messages: [...chat.messages, optimistic] } : chat));
     setDraft("");
     try {
-      const response = await fetch(`/api/conversations/${activeChat.id}/messages`, {
+      const response = await fetch(`/api/conversations/${activeConversationId}/messages`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text, clientMessageId }),
       });
       const data = await response.json() as { message?: ApiMessage; error?: string };
