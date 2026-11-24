@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sendOtpSchema, verifyOtpSchema } from "@/lib/validation/auth";
+import { sendOtpSchema, verifyOtpSchema } from "./auth";
 
 describe("phone authentication validation", () => {
   it("normalizes a Bangladesh phone number to E.164", () => {
