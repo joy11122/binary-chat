@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { getDb } from "@/lib/db";
 
 type RateLimitResult = { allowed: boolean; remaining: number; resetAt: Date };
@@ -8,7 +9,7 @@ export async function consumeRateLimit(key: string, maxAttempts: number, windowM
   const now = Date.now();
   const bucket = Math.floor(now / windowMs);
   const resetAt = new Date((bucket + 1) * windowMs);
-  const id = `${key}:${bucket}`;
+  const id = `${createHash("sha256").update(key).digest("hex")}:${bucket}`;
   const collection = db.collection<{ _id: string; count: number; expiresAt: Date }>("auth_rate_limits");
   const record = await collection.findOneAndUpdate(
     { _id: id },
