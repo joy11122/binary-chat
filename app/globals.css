@@ -19,3 +19,37 @@
 .auth-submit{height:47px;margin-top:7px;padding:0 15px;display:flex;align-items:center;justify-content:center;gap:10px;border:0;border-radius:10px;background:var(--mint);color:#092014;font-size:12px;font-weight:700;cursor:pointer;transition:transform .18s ease,filter .18s ease}.auth-submit:hover:not(:disabled){filter:brightness(1.06);transform:translateY(-1px)}.auth-submit:disabled{opacity:.5;cursor:not-allowed}.auth-back{align-self:center;display:flex;align-items:center;gap:6px;padding:7px;border:0;background:transparent;color:#8eaa98;font-size:11px;cursor:pointer}.auth-error,.auth-notice{margin:13px 0 0;display:flex;align-items:center;gap:7px;font-size:11px;line-height:1.5}.auth-error{color:#ff9e9e}.auth-notice{color:#9be5b1}.auth-assurance{margin-top:22px;padding-top:15px;display:flex;align-items:center;justify-content:center;gap:7px;border-top:1px solid var(--line);color:#6f8877;font-size:10px}.auth-bottom{margin-top:19px;text-align:center;color:#536b5b;font:8px "DM Mono",monospace;letter-spacing:1.2px}.auth-bottom span{color:var(--mint);padding:0 5px}
 @media(max-width:480px){.auth-shell{padding:18px 13px}.auth-card{padding:25px 22px 19px;border-radius:18px}.auth-copy h1{font-size:32px}.auth-art{height:130px}}
 @media(prefers-reduced-motion:reduce){.auth-submit{transition:none}}
+
+/* Realtime chat states and contact discovery */
+.empty-list,.empty-state{display:flex;align-items:center;justify-content:center;gap:9px;color:var(--dim);font-size:11px;text-align:center}
+.empty-list{padding:18px 10px;line-height:1.6}
+.empty-state{min-height:190px;flex-direction:column;line-height:1.6}
+.empty-state strong{color:var(--text);font-size:14px}
+.empty-state>span{max-width:280px}
+.empty-welcome{height:100%;min-height:320px}
+.welcome-orbit{width:88px;height:88px;margin-bottom:8px;border:1px solid rgba(139,255,181,.24);border-radius:26px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(circle,rgba(57,217,138,.16),transparent 70%);color:#9edeb5;font:10px/1.5 "DM Mono",monospace;transform:rotate(-8deg)}
+.welcome-orbit b{font-size:17px;color:var(--mint);font-weight:500}
+.start-chat-button{margin-top:10px;padding:10px 14px;border:1px solid rgba(139,255,181,.28);border-radius:9px;background:rgba(139,255,181,.09);color:var(--mint);display:flex;align-items:center;gap:8px;font-size:11px;cursor:pointer}
+.inline-error{margin:0 25px 9px;padding:9px 12px;border:1px solid rgba(255,130,130,.2);border-radius:9px;background:rgba(255,100,100,.06);color:#ffaaaa;font-size:11px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.inline-error button{border:0;background:transparent;color:inherit;display:grid;place-items:center;cursor:pointer}
+.contact-overlay{position:fixed;inset:0;z-index:50;padding:18px;display:grid;place-items:center;background:rgba(0,0,0,.68);backdrop-filter:blur(8px)}
+.contact-dialog{width:min(100%,430px);padding:24px;border:1px solid rgba(139,255,181,.17);border-radius:17px;background:#101f17;box-shadow:0 24px 90px rgba(0,0,0,.5)}
+.contact-dialog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.contact-dialog-head .eyebrow{color:#7fb993;font:9px "DM Mono",monospace;letter-spacing:1.2px}
+.contact-dialog-head h2{margin:7px 0 0;font:600 22px "Space Grotesk",sans-serif}
+.contact-dialog>p{margin:12px 0 18px;color:var(--muted);font-size:12px;line-height:1.6}
+.contact-form{display:flex;flex-direction:column;gap:9px}
+.contact-form label{color:#83a18d;font:9px "DM Mono",monospace;letter-spacing:1px}
+.contact-form input{height:45px;padding:0 12px;border:1px solid rgba(177,224,190,.16);border-radius:9px;outline:0;background:rgba(255,255,255,.025);color:var(--text);font:13px "DM Mono",monospace}
+.contact-form input:focus{border-color:rgba(139,255,181,.5)}
+.contact-form button{height:43px;margin-top:4px;border:0;border-radius:9px;background:var(--mint);color:#092014;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer}
+.contact-form button:disabled,.found-contact button:disabled{opacity:.5;cursor:not-allowed}
+.contact-error{margin:12px 0 0!important;color:#ffaaaa!important;font-size:11px!important}
+.found-contact{margin-top:17px;padding:11px;border:1px solid rgba(139,255,181,.16);border-radius:11px;display:flex;align-items:center;gap:10px}
+.found-contact>div:nth-child(2){display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
+.found-contact strong{font-size:12px}
+.found-contact span{font:10px "DM Mono",monospace;color:var(--muted)}
+.found-contact button{padding:8px 11px;border:0;border-radius:8px;background:rgba(139,255,181,.14);color:var(--mint);font-size:11px;cursor:pointer}
+.spin{animation:binary-spin 1s linear infinite}
+@keyframes binary-spin{to{transform:rotate(360deg)}}
+@media(max-width:680px){.inline-error{margin:0 12px 8px}.contact-dialog{padding:20px}.empty-welcome{min-height:250px}}
