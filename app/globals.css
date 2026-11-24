@@ -65,3 +65,15 @@
 .contact-form button:disabled{opacity:.55;cursor:not-allowed}
 
 .profile-loading{margin:12px 0 0;color:var(--muted);font-size:11px}
+
+
+/* Destructive account actions */
+.danger-zone{margin-top:20px;padding:14px;border:1px solid rgba(255,112,112,.22);border-radius:11px;background:rgba(255,92,92,.035);display:flex;flex-direction:column;gap:9px}
+.danger-eyebrow{color:#ff9999;font:9px "DM Mono",monospace;letter-spacing:1.1px}
+.danger-zone>strong{font-size:12px;color:#ffe2e2}
+.danger-zone p{margin:0;color:#b69a9a;font-size:10px;line-height:1.6}
+.danger-zone label{margin-top:3px;color:#c59a9a;font:9px "DM Mono",monospace;letter-spacing:.7px}
+.danger-zone input{height:39px;padding:0 11px;border:1px solid rgba(255,130,130,.25);border-radius:8px;background:rgba(0,0,0,.16);color:#ffe2e2;font:12px "DM Mono",monospace;outline:none}
+.danger-zone input:focus{border-color:rgba(255,130,130,.55)}
+.delete-account-button{height:40px;display:flex;align-items:center;justify-content:center;gap:8px;border:1px solid rgba(255,125,125,.3);border-radius:8px;background:rgba(255,92,92,.12);color:#ffaaaa;font-size:10px;font-weight:600;cursor:pointer}
+.delete-account-button:disabled{opacity:.42;cursor:not-allowed}
