@@ -1,0 +1,62 @@
+name: Native Shell Validation
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - "capacitor.config.ts"
+      - "capacitor-web/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/native-shell-validation.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-shell-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    name: Android Capacitor shell
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - run: npm install --no-audit --no-fund
+      - run: npx cap add android
+      - run: npx cap sync android
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew --no-daemon assembleDebug
+
+  ios:
+    name: iOS Capacitor shell
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - run: npx cap add ios
+      - run: npx cap sync ios
+      - name: Build iOS Simulator app
+        run: >-
+          xcodebuild
+          -project ios/App/App.xcodeproj
+          -scheme App
+          -sdk iphonesimulator
+          -configuration Debug
+          CODE_SIGNING_ALLOWED=NO
+          build
