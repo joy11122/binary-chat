@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth/session";
+import { consumeRateLimit } from "@/lib/auth/rate-limit";
 import { conversationChannel, ensureMessagingIndexes, getAblyRest, isObjectId } from "@/lib/messaging";
 
 export const runtime = "nodejs";
@@ -63,6 +64,8 @@ export async function POST(request: Request, context: RouteContext) {
     if (!user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
     const { conversationId } = await context.params;
     const body: unknown = await request.json().catch(() => null);
+    const limit = await consumeRateLimit(`message-send:${user.id}`, 60, 60_000);
+    if (!limit.allowed) return NextResponse.json({ error: "You are sending messages too quickly. Try again shortly." }, { status: 429 });
     const parsed = sendSchema.safeParse(body);
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid message." }, { status: 400 });
     const access = await getMemberContext(conversationId, user.id);
