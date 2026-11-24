@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
+import { consumeRateLimit } from "@/lib/auth/rate-limit";
 import { ensureMessagingIndexes, getAblyRest, conversationChannel } from "@/lib/messaging";
 
 export const runtime = "nodejs";
@@ -8,6 +9,8 @@ export async function GET() {
   try {
     const user = await getCurrentUser();
     if (!user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+    const limit = await consumeRateLimit(`realtime-token:${user.id}`, 30, 60_000);
+    if (!limit.allowed) return NextResponse.json({ error: "Too many realtime token requests. Try again shortly." }, { status: 429 });
     const db = await ensureMessagingIndexes();
     const conversations = await db.collection("conversations").find(
       { memberIds: user.id }, { projection: { _id: 1 }, limit: 200 },

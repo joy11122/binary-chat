@@ -25,6 +25,8 @@ export async function GET(request: Request, context: RouteContext) {
   try {
     const user = await getCurrentUser();
     if (!user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+    const historyLimit = await consumeRateLimit(`message-history:${user.id}`, 120, 60_000);
+    if (!historyLimit.allowed) return NextResponse.json({ error: "Too many history requests. Try again shortly." }, { status: 429 });
     const { conversationId } = await context.params;
     const access = await getMemberContext(conversationId, user.id);
     if (!access) return NextResponse.json({ error: "Conversation not found." }, { status: 404 });
@@ -124,6 +126,8 @@ export async function PATCH(request: Request, context: RouteContext) {
   try {
     const user = await getCurrentUser();
     if (!user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+    const receiptLimit = await consumeRateLimit(`message-read:${user.id}`, 120, 60_000);
+    if (!receiptLimit.allowed) return NextResponse.json({ error: "Too many receipt updates. Try again shortly." }, { status: 429 });
     const { conversationId } = await context.params;
     const body: unknown = await request.json().catch(() => null);
     const schema = z.object({ messageIds: z.array(z.string().regex(/^[a-f\d]{24}$/i)).min(1).max(50) });
@@ -131,18 +135,27 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (!parsed.success) return NextResponse.json({ error: "Provide valid message IDs." }, { status: 400 });
     const access = await getMemberContext(conversationId, user.id);
     if (!access) return NextResponse.json({ error: "Conversation not found." }, { status: 404 });
-    const ids = parsed.data.messageIds.map((id) => new ObjectId(id));
+    const ids = [...new Set(parsed.data.messageIds)].map((id) => new ObjectId(id));
+    const unreadMessages = await access.db.collection("messages").find(
+      { _id: { $in: ids }, conversationId: access.conversation._id, recipientId: user.id, readAt: { $exists: false } },
+      { projection: { _id: 1 } },
+    ).toArray();
+    const eligibleIds = unreadMessages.map((message) => message._id);
     const now = new Date();
-    const result = await access.db.collection("messages").updateMany(
-      { _id: { $in: ids }, conversationId: access.conversation._id, recipientId: user.id },
-      { $set: { readAt: now, deliveredAt: now } },
-    );
-    try {
-      await getAblyRest().channels.get(conversationChannel(conversationId)).publish("message.read", {
-        messageIds: parsed.data.messageIds, readerId: user.id, readAt: now,
-      });
-    } catch (error) {
-      console.error("Read receipt realtime publish failed:", error instanceof Error ? error.message : "Unknown error");
+    const result = eligibleIds.length
+      ? await access.db.collection("messages").updateMany(
+          { _id: { $in: eligibleIds }, conversationId: access.conversation._id, recipientId: user.id, readAt: { $exists: false } },
+          { $set: { readAt: now, deliveredAt: now } },
+        )
+      : { modifiedCount: 0 };
+    if (eligibleIds.length > 0) {
+      try {
+        await getAblyRest().channels.get(conversationChannel(conversationId)).publish("message.read", {
+          messageIds: eligibleIds.map((id) => id.toString()), readerId: user.id, readAt: now,
+        });
+      } catch (error) {
+        console.error("Read receipt realtime publish failed:", error instanceof Error ? error.message : "Unknown error");
+      }
     }
     return NextResponse.json({ updated: result.modifiedCount, readAt: now });
   } catch {
