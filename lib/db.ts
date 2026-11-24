@@ -16,7 +16,8 @@ async function getClient() {
 }
 
 export async function getDb(): Promise<Db> {
-  const [{ MONGODB_DB_NAME }, client] = [getServerEnv(), await getClient()];
+  const { MONGODB_DB_NAME } = getServerEnv();
+  const client = await getClient();
   const db = client.db(MONGODB_DB_NAME);
   await Promise.all([
     db.collection("users").createIndex({ phone: 1 }, { unique: true, name: "users_phone_unique" }),
