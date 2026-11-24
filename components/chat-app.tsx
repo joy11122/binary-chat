@@ -39,6 +39,7 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
   const [profileAvatarUrl, setProfileAvatarUrl] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState("");
   const [profileSuccess, setProfileSuccess] = useState("");
   const realtimeRef = useRef<AblyRealtimeClient | null>(null);
@@ -229,6 +230,24 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
     }));
   }, [onlineUsers]);
 
+  async function openProfileSettings() {
+    setProfileOpen(true);
+    setProfileError("");
+    setProfileSuccess("");
+    setProfileLoading(true);
+    try {
+      const response = await fetch("/api/auth/me", { cache: "no-store" });
+      const data = await response.json() as { user?: { displayName: string; avatarUrl: string }; error?: string };
+      if (!response.ok || !data.user) throw new Error(data.error ?? "Could not load your profile.");
+      setProfileName(data.user.displayName);
+      setProfileAvatarUrl(data.user.avatarUrl);
+    } catch (cause) {
+      setProfileError(cause instanceof Error ? cause.message : "Could not load your profile.");
+    } finally {
+      setProfileLoading(false);
+    }
+  }
+
   async function saveProfile(event: React.FormEvent) {
     event.preventDefault();
     if (profileSaving) return;
@@ -345,7 +364,7 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
           {!loadingChats && filteredChats.length === 0 && <div className="empty-list">{query ? "No matching conversations" : "No conversations yet. Start one with +."}</div>}
           {filteredChats.map((chat) => <button key={chat.id} className={`chat-row ${activeId === chat.id ? "selected" : ""}`} onClick={() => { setActiveId(chat.id); setRevealedId(null); setChats((current) => current.map((item) => item.id === chat.id ? { ...item, unread: 0 } : item)); }}><div className={`avatar avatar-${chat.color}`}>{chat.initials}{chat.online && <span className="online-dot" />}</div><span className="chat-row-copy"><strong>{chat.name}</strong><span>{chat.preview === "Start a conversation" ? chat.preview : textToBinary(chat.preview).slice(0, 36)}</span></span><span className="chat-row-meta"><time>{chat.time}</time></span></button>)}
         </div>
-        <div className="sidebar-bottom"><div className="privacy-note"><div className="privacy-icon"><ShieldCheck size={17} /></div><div><strong>Your space, your rules.</strong><span>Privacy is not an add-on.</span></div></div><button className="settings-link" onClick={() => { setProfileOpen(true); setProfileError(""); setProfileSuccess(""); }}><Settings2 size={17} /> Profile settings <ChevronDown size={15} /></button></div>
+        <div className="sidebar-bottom"><div className="privacy-note"><div className="privacy-icon"><ShieldCheck size={17} /></div><div><strong>Your space, your rules.</strong><span>Privacy is not an add-on.</span></div></div><button className="settings-link" onClick={openProfileSettings}><Settings2 size={17} /> Profile settings <ChevronDown size={15} /></button></div>
       </aside>
 
       <section className="chat-panel">
@@ -369,7 +388,7 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
 
       <aside className="details-panel"><div className="details-top"><span>YOUR EXPERIENCE</span><button className="icon-button" aria-label="Close details"><X size={17} /></button></div><div className="hero-orbit"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><div className="orbit-core"><span>010</span><b>101</b><span>110</span></div><Sparkles className="orbit-spark" size={17} /></div><div className="details-intro"><span className="eyebrow">A NEW KIND OF QUIET</span><h2>Say it in<br /><em>your</em> language.</h2><p>Your words stay yours. See every message as a stream of bits, and reveal the original only when you choose.</p></div><div className="feature-list"><div className="feature-item"><div className="feature-icon"><Eye size={16} /></div><div><strong>Five-second reveal</strong><span>Tap the eye to read. It hides again automatically.</span></div></div><div className="feature-item"><div className="feature-icon"><ShieldCheck size={16} /></div><div><strong>Privacy-first by design</strong><span>Reveal state stays on this device.</span></div></div><div className="feature-item"><div className="feature-icon"><MessageCircle size={16} /></div><div><strong>Human conversations</strong><span>Familiar chat, a different point of view.</span></div></div></div><div className="coming-soon"><div className="coming-icon"><Bell size={15} /></div><div><strong>More thoughtful features</strong><span>Messages sync across your signed-in devices.</span></div><span className="soon-tag">LIVE</span></div><div className="details-footer"><span>BUILT FOR THE IN-BETWEEN</span><span>v0.1.3</span></div></aside>
 
-      {profileOpen && <div className="contact-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !profileSaving) setProfileOpen(false); }}><section className="contact-dialog" role="dialog" aria-modal="true" aria-labelledby="profile-title"><div className="contact-dialog-head"><div><span className="eyebrow">YOUR ACCOUNT</span><h2 id="profile-title">Profile settings</h2></div><button className="icon-button" onClick={() => setProfileOpen(false)} disabled={profileSaving} aria-label="Close profile settings"><X size={18} /></button></div><p>Your name and avatar are visible to people you chat with.</p><form onSubmit={saveProfile} className="contact-form"><label htmlFor="profile-name">DISPLAY NAME</label><input id="profile-name" value={profileName} onChange={(event) => setProfileName(event.target.value)} maxLength={40} minLength={1} required autoComplete="name" /><label htmlFor="profile-avatar">AVATAR IMAGE URL (HTTPS)</label><input id="profile-avatar" type="url" value={profileAvatarUrl} onChange={(event) => setProfileAvatarUrl(event.target.value)} placeholder="https://example.com/avatar.jpg" autoComplete="url" /><button type="submit" disabled={profileSaving || !profileName.trim()}>{profileSaving ? <LoaderCircle size={16} className="spin" /> : <Save size={16} />} Save profile</button></form>{profileError && <p className="contact-error" role="alert">{profileError}</p>}{profileSuccess && <p className="profile-success" role="status">{profileSuccess}</p>}<div className="profile-account-meta"><span>PHONE NUMBER</span><strong>Account verified by phone</strong><small>Your phone number cannot be changed here.</small></div></section></div>}
+      {profileOpen && <div className="contact-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !profileSaving) setProfileOpen(false); }}><section className="contact-dialog" role="dialog" aria-modal="true" aria-labelledby="profile-title"><div className="contact-dialog-head"><div><span className="eyebrow">YOUR ACCOUNT</span><h2 id="profile-title">Profile settings</h2></div><button className="icon-button" onClick={() => setProfileOpen(false)} disabled={profileSaving} aria-label="Close profile settings"><X size={18} /></button></div><p>Your name and avatar are visible to people you chat with.</p>{profileLoading && <p className="profile-loading" role="status">Loading your account…</p>}<form onSubmit={saveProfile} className="contact-form"><label htmlFor="profile-name">DISPLAY NAME</label><input id="profile-name" value={profileName} onChange={(event) => setProfileName(event.target.value)} maxLength={40} minLength={1} required autoComplete="name" /><label htmlFor="profile-avatar">AVATAR IMAGE URL (HTTPS)</label><input id="profile-avatar" type="url" value={profileAvatarUrl} onChange={(event) => setProfileAvatarUrl(event.target.value)} placeholder="https://example.com/avatar.jpg" autoComplete="url" /><button type="submit" disabled={profileSaving || profileLoading || !profileName.trim()}>{profileSaving ? <LoaderCircle size={16} className="spin" /> : <Save size={16} />} Save profile</button></form>{profileError && <p className="contact-error" role="alert">{profileError}</p>}{profileSuccess && <p className="profile-success" role="status">{profileSuccess}</p>}<div className="profile-account-meta"><span>PHONE NUMBER</span><strong>Account verified by phone</strong><small>Your phone number cannot be changed here.</small></div></section></div>}
 
       {contactOpen && <div className="contact-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setContactOpen(false); }}><section className="contact-dialog" role="dialog" aria-modal="true" aria-labelledby="contact-title"><div className="contact-dialog-head"><div><span className="eyebrow">CONNECT WITH SOMEONE</span><h2 id="contact-title">New conversation</h2></div><button className="icon-button" onClick={() => setContactOpen(false)} aria-label="Close dialog"><X size={18} /></button></div><p>Search by their registered phone number, including country code.</p><form onSubmit={findContact} className="contact-form"><label htmlFor="contact-phone">PHONE NUMBER</label><input id="contact-phone" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} placeholder="+8801XXXXXXXXX" autoComplete="tel" required /><button type="submit" disabled={contactLoading || !contactPhone.trim()}>{contactLoading ? <LoaderCircle size={16} className="spin" /> : <Search size={16} />} Find account</button></form>{contactError && <p className="contact-error" role="alert">{contactError}</p>}{foundContact && <div className="found-contact"><div className="avatar avatar-blue">{initialsFor(foundContact.displayName || foundContact.phone)}</div><div><strong>{foundContact.displayName || foundContact.phone}</strong><span>{foundContact.phone}</span></div><button onClick={startConversation} disabled={contactLoading}>{contactLoading ? "Opening…" : "Message"}</button></div>}</section></div>}
     </main>
