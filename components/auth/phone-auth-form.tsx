@@ -30,7 +30,7 @@ export default function PhoneAuthForm() {
     } finally { setBusy(false); }
   }
 
-  async function verifyCode(event: React.FormEvent<HTMLFormElement>) {
+  async function verifyCode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true); setError(""); setNotice("");
     try {
