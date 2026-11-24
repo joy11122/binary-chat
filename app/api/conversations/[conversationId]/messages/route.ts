@@ -130,7 +130,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (!receiptLimit.allowed) return NextResponse.json({ error: "Too many receipt updates. Try again shortly." }, { status: 429 });
     const { conversationId } = await context.params;
     const body: unknown = await request.json().catch(() => null);
-    const schema = z.object({ messageIds: z.array(z.string().regex(/^[a-f\\d]{24}$/i)).min(1).max(50) });
+    const schema = z.object({ messageIds: z.array(z.string().regex(/^[a-f\d]{24}$/i)).min(1).max(50) });
     const parsed = schema.safeParse(body);
     if (!parsed.success) return NextResponse.json({ error: "Provide valid message IDs." }, { status: 400 });
     const access = await getMemberContext(conversationId, user.id);
