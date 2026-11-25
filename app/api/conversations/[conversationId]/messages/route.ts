@@ -109,7 +109,7 @@ export async function POST(request: Request, context: RouteContext) {
     // The message itself is the durable outbox record, so a process restart cannot lose it.
     try {
       const { drainRealtimeOutbox } = await import("@/lib/realtime-outbox");
-      await drainRealtimeOutbox(access.db, 1);
+      await drainRealtimeOutbox(access.db, 1, saved._id);
     } catch (error) {
       console.error("Immediate realtime delivery attempt deferred:", error instanceof Error ? error.message : "Unknown error");
     }
