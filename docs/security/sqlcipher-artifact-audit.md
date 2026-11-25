@@ -154,3 +154,33 @@ The immediate evidence blockers are:
 5. Obtain independent security review and complete physical-device lifecycle tests before any dependency or production persistence implementation is introduced.
 
 No application source, native bridge, Gradle/Swift manifest, Cargo manifest, lockfile, or runtime dependency was changed by this audit follow-up.
+
+
+## 10. Supplied archive inspection (2026-11-25)
+
+The exact user-supplied archives were retrieved from the user's Library and independently hashed and structurally inspected.
+
+### Android AAR
+- File size: 4,050,842 bytes; SHA-256: `1e57857adfd29e2f5ddb4686e1e5ec6659920220d4bf182fdb5ef085b5577100`.
+- ZIP integrity passed; 17 entries.
+- Contains classes.jar, manifest, AAR metadata, ProGuard rules, and JNI libraries for arm64-v8a, armeabi-v7a, x86, and x86_64.
+- Manifest minSdk is 23; AAR metadata minCompileSdk is 36.
+- All four native libraries are Android ELF shared objects built by NDK r25c (9519653); ELF machine types match their ABI directories. Build IDs:
+  - arm64-v8a: `1b348706fdfc4606ad9f48c4ac0ff32a7c668004`
+  - armeabi-v7a: `1167e1d930b71c86a75780d2ff410fbf45921f56`
+  - x86: `ceaabb9fcee70dedb7c87c93d0542ae10d2aa5ec`
+  - x86_64: `bb0c7af1a27eb135809da9327280970f84ca9108`
+- No publisher signature files are embedded in the AAR. Detached Maven signature/checksum metadata was not validated. Build IDs and ABI structure do not prove source provenance.
+
+### Apple XCFramework
+- File size: 50,874,674 bytes; SHA-256: `1505174fe7f8a0fe81d6ebf87a64b17701b500c12a445ef6b68b9159f012d747`, matching the release metadata and package manifest.
+- ZIP integrity passed; 260 entries.
+- iOS device arm64 and iOS simulator arm64/x86_64 slices are present; their framework metadata declares minimum iOS 12.0.
+- Additional macOS, Mac Catalyst, tvOS, watchOS, and visionOS variants are present.
+- Code-signature directories and privacy manifests are present, but signature validity/trust was not established. macOS `codesign --verify --deep --strict` was not available in this review environment.
+- Full third-party notice inventory remains outstanding.
+
+### Decision
+The supplied archive hashes and structural checks are verified. This closes archive acquisition/inspection only, not provenance or signature verification. **NO-GO remains** pending: trusted Maven signature/checksum verification; Android source-to-binary reproduction or vendor attestation; Apple signature verification on macOS and trusted signing identity; SBOM/vulnerability and license review; independent security review and physical-device lifecycle/interoperability tests.
+
+No application code, native bridge, dependency manifest, lockfile, or runtime dependency was changed.
