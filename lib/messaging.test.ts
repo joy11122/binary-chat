@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { conversationChannel, isObjectId, normalizeMemberKey } from "./messaging-utils";
-import { buildMessageCreatedEvent, realtimeRetryDelayMs } from "./realtime-outbox";
+import { buildMessageCreatedEvent, realtimeRetryDelayMs } from "./realtime-outbox-utils";
 
 describe("messaging helpers", () => {
   it("creates stable member keys regardless of input order", () => {
