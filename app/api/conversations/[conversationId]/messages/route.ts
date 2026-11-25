@@ -83,6 +83,8 @@ export async function POST(request: Request, context: RouteContext) {
       clientMessageId: parsed.data.clientMessageId,
       text: parsed.data.text,
       createdAt: now,
+      realtimeNextAttemptAt: now,
+      realtimeAttempts: 0,
     };
     let saved;
     try {
@@ -102,13 +104,13 @@ export async function POST(request: Request, context: RouteContext) {
       { _id: access.conversation._id }, { $set: { updatedAt: now, lastMessageAt: now } },
     );
 
+    // Drain through the same atomic lease/retry path used by the scheduled worker.
+    // The message itself is the durable outbox record, so a process restart cannot lose it.
     try {
-      await getAblyRest().channels.get(conversationChannel(conversationId)).publish("message.created", {
-        id: saved._id.toString(), conversationId, text: saved.text, senderId: user.id,
-        recipientId, createdAt: saved.createdAt, clientMessageId: saved.clientMessageId,
-      });
+      const { drainRealtimeOutbox } = await import("@/lib/realtime-outbox");
+      await drainRealtimeOutbox(access.db, 1);
     } catch (error) {
-      console.error("Realtime publish deferred; message remains persisted:", error instanceof Error ? error.message : "Unknown error");
+      console.error("Immediate realtime delivery attempt deferred:", error instanceof Error ? error.message : "Unknown error");
     }
 
     return NextResponse.json({ message: {
