@@ -76,7 +76,7 @@ export async function drainRealtimeOutbox(db: Db, limit = 50): Promise<RealtimeO
         {
           $set: {
             realtimeNextAttemptAt: new Date(Date.now() + realtimeRetryDelayMs(attempts)),
-            realtimeLastError: error instanceof Error ? error.message.slice(0, 300) : "Realtime provider error",
+            realtimeLastError: error instanceof Error ? error.name.slice(0, 80) : "Realtime provider error",
           },
           $unset: { realtimeLeaseToken: "", realtimeLeaseUntil: "" },
         },
