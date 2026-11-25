@@ -157,6 +157,8 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
   useEffect(() => {
     if (!offlineQueueLoaded || offlineQueue.length === 0 || !navigator.onLine) return;
     void Promise.all(offlineQueue.map((item) => transmitQueuedMessage(item)));
+    const retry = window.setTimeout(() => setNetworkRevision((value) => value + 1), 10_000);
+    return () => window.clearTimeout(retry);
   }, [offlineQueue, offlineQueueLoaded, realtimeStatus, networkRevision]);
 
   useEffect(() => {
@@ -395,6 +397,7 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
       await enqueueOfflineMessage(queued);
     } catch {
       setError("Could not safely save this message for retry. Your draft has been kept.");
+      setSending(false);
       return;
     }
     setOfflineQueue((current) => [...current, queued]);
@@ -477,7 +480,7 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
             <div className="encryption-banner"><LockKeyhole size={13} /><span>Messages are displayed in binary on your screen.</span><button aria-label="About binary display"><CircleHelp size={14} /></button></div>
             {loadingMessages && <div className="empty-state"><LoaderCircle size={18} className="spin" /> Loading messages</div>}
             {!loadingMessages && activeChat.messages.length === 0 && <div className="empty-state"><MessageCircle size={22} /><strong>No messages yet</strong><span>Say hello to start this conversation.</span></div>}
-            <div className="messages">{activeChat.messages.map((message) => { const isRevealed = revealedId === message.id; return <div key={message.id} className={`message-line ${message.mine ? "mine" : "theirs"}`}><div className={`message-bubble ${message.mine ? "bubble-mine" : "bubble-theirs"}`}><p className={`message-content ${!isRevealed ? "binary-text" : ""}`}>{isRevealed ? message.text : textToBinary(message.text)}</p><div className="message-footer"><span>{message.time}</span>{message.mine && (message.read ? <CheckCheck size={14} className="read-check" /> : message.delivered ? <CheckCheck size={14} /> : <Check size={14} />)}<button className={`reveal-button ${isRevealed ? "revealing" : ""}`} onClick={() => toggleReveal(message.id)} aria-label={isRevealed ? "Hide original message" : "Reveal original message for five seconds"} title={isRevealed ? "Hide message" : "Reveal for 5 seconds"}>{isRevealed ? <EyeOff size={13} /> : <Eye size={13} />}</button>{isRevealed && <span className="reveal-count">{secondsLeft}s</span>}</div></div></div>; })}</div>
+            <div className="messages">{activeChat.messages.map((message) => { const isRevealed = revealedId === message.id; return <div key={message.id} className={`message-line ${message.mine ? "mine" : "theirs"}`}><div className={`message-bubble ${message.mine ? "bubble-mine" : "bubble-theirs"}`}><p className={`message-content ${!isRevealed ? "binary-text" : ""}`}>{isRevealed ? message.text : textToBinary(message.text)}</p><div className="message-footer"><span>{message.time}</span>{message.deliveryStatus && <span role="status">{message.deliveryStatus === "sending" ? "Sending…" : "Queued"}</span>}{message.mine && !message.deliveryStatus && (message.read ? <CheckCheck size={14} className="read-check" /> : message.delivered ? <CheckCheck size={14} /> : <Check size={14} />)}<button className={`reveal-button ${isRevealed ? "revealing" : ""}`} onClick={() => toggleReveal(message.id)} aria-label={isRevealed ? "Hide original message" : "Reveal original message for five seconds"} title={isRevealed ? "Hide message" : "Reveal for 5 seconds"}>{isRevealed ? <EyeOff size={13} /> : <Eye size={13} />}</button>{isRevealed && <span className="reveal-count">{secondsLeft}s</span>}</div></div></div>; })}</div>
           </> : <div className="empty-state empty-welcome"><div className="welcome-orbit"><span>010</span><b>101</b><span>110</span></div><strong>Your conversations start here.</strong><span>Find someone by phone number to send your first message.</span><button className="start-chat-button" onClick={() => setContactOpen(true)}><UserRoundPlus size={15} /> New conversation</button></div>}
         </div>
         {activeChat && <form className="composer" onSubmit={sendMessage}><button type="button" className="icon-button composer-tool" aria-label="Emoji"><Smile size={19} /></button><input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Write a message..." aria-label="Message text" /><span className="composer-hint">ENTER ↵</span><button type="submit" className="send-button" disabled={!draft.trim() || sending} aria-label="Send message">{sending ? <LoaderCircle size={17} className="spin" /> : <Send size={17} />}</button></form>}
