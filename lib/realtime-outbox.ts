@@ -37,7 +37,7 @@ export async function drainRealtimeOutbox(db: Db, limit = 50): Promise<RealtimeO
     const claimedAt = new Date();
     const claimed = await messages.findOneAndUpdate(
       {
-        realtimePublishedAt: { $exists: false },
+        realtimePending: true,
         $and: [
           { $or: [{ realtimeNextAttemptAt: { $exists: false } }, { realtimeNextAttemptAt: { $lte: claimedAt } }] },
           { $or: [{ realtimeLeaseUntil: { $exists: false } }, { realtimeLeaseUntil: { $lte: claimedAt } }] },
@@ -63,9 +63,9 @@ export async function drainRealtimeOutbox(db: Db, limit = 50): Promise<RealtimeO
         buildMessageCreatedEvent(claimed),
       );
       const marked = await messages.updateOne(
-        { _id: claimed._id, realtimeLeaseToken: leaseToken, realtimePublishedAt: { $exists: false } },
+        { _id: claimed._id, realtimeLeaseToken: leaseToken, realtimePending: true },
         {
-          $set: { realtimePublishedAt: new Date() },
+          $set: { realtimePublishedAt: new Date(), realtimePending: false },
           $unset: { realtimeLeaseToken: "", realtimeLeaseUntil: "", realtimeNextAttemptAt: "", realtimeLastError: "" },
         },
       );
