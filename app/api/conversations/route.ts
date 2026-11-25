@@ -26,7 +26,15 @@ export async function GET() {
         { $sort: { createdAt: -1 } }, { $limit: 1 },
         { $project: { text: 1, senderId: 1, createdAt: 1 } },
       ], as: "latestMessage" } },
-      { $project: { memberIds: 1, createdAt: 1, updatedAt: 1, members: 1, latestMessage: 1 } },
+      { $lookup: { from: "messages", let: { conversationId: "$_id" }, pipeline: [
+        { $match: {
+          recipientId: user.id,
+          readAt: { $exists: false },
+          $expr: { $eq: ["$conversationId", "$$conversationId"] },
+        } },
+        { $count: "total" },
+      ], as: "unreadCount" } },
+      { $project: { memberIds: 1, createdAt: 1, updatedAt: 1, members: 1, latestMessage: 1, unreadCount: 1 } },
     ]).toArray();
     return NextResponse.json({ conversations: conversations.map((item) => ({
       id: String(item._id),
@@ -38,6 +46,7 @@ export async function GET() {
         senderId: item.latestMessage[0].senderId,
         createdAt: item.latestMessage[0].createdAt,
       } : null,
+      unreadCount: item.unreadCount?.[0]?.total ?? 0,
       updatedAt: item.updatedAt,
     })) });
   } catch (error) {

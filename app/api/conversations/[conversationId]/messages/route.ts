@@ -3,7 +3,7 @@ import { ObjectId } from "mongodb";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth/session";
 import { consumeRateLimit } from "@/lib/auth/rate-limit";
-import { conversationChannel, ensureMessagingIndexes, getAblyRest, isObjectId } from "@/lib/messaging";
+import { ensureMessagingIndexes, isObjectId } from "@/lib/messaging";
 
 export const runtime = "nodejs";
 const sendSchema = z.object({
@@ -30,24 +30,25 @@ export async function GET(request: Request, context: RouteContext) {
     const { conversationId } = await context.params;
     const access = await getMemberContext(conversationId, user.id);
     if (!access) return NextResponse.json({ error: "Conversation not found." }, { status: 404 });
+    if (access.conversation.encryptionMode === "MLS_V1") {
+      return NextResponse.json({ error: "Plaintext messaging is disabled for this encrypted conversation." }, { status: 409 });
+    }
     const url = new URL(request.url);
     const before = url.searchParams.get("before");
     const filter: Record<string, unknown> = { conversationId: access.conversation._id };
     if (before && !Number.isNaN(Date.parse(before))) filter.createdAt = { $lt: new Date(before) };
-    const messages = await access.db.collection("messages").find(filter).sort({ createdAt: -1 }).limit(50).toArray();
-    const delivered = await access.db.collection("messages").updateMany(
+    const deliveredAt = new Date();
+    await access.db.collection("messages").updateMany(
       { conversationId: access.conversation._id, recipientId: user.id, deliveredAt: { $exists: false } },
-      { $set: { deliveredAt: new Date() } },
+      { $set: { deliveredAt, deliveryReceiptPending: true } },
     );
-    if (delivered.modifiedCount > 0) {
-      try {
-        await getAblyRest().channels.get(conversationChannel(conversationId)).publish("message.delivered", {
-          recipientId: user.id, deliveredAt: new Date(),
-        });
-      } catch (error) {
-        console.error("Delivery receipt realtime publish failed:", error instanceof Error ? error.message : "Unknown error");
-      }
+    try {
+      const { drainRealtimeOutbox } = await import("@/lib/realtime-outbox");
+      await drainRealtimeOutbox(access.db, 10);
+    } catch (error) {
+      console.error("Delivery receipt outbox attempt deferred:", error instanceof Error ? error.message : "Unknown error");
     }
+    const messages = await access.db.collection("messages").find(filter).sort({ createdAt: -1 }).limit(50).toArray();
     return NextResponse.json({ messages: messages.reverse().map((message) => ({
       id: message._id.toString(), text: message.text, senderId: message.senderId,
       recipientId: message.recipientId, createdAt: message.createdAt,
@@ -72,6 +73,9 @@ export async function POST(request: Request, context: RouteContext) {
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid message." }, { status: 400 });
     const access = await getMemberContext(conversationId, user.id);
     if (!access) return NextResponse.json({ error: "Conversation not found." }, { status: 404 });
+    if (access.conversation.encryptionMode === "MLS_V1") {
+      return NextResponse.json({ error: "Plaintext messaging is disabled for this encrypted conversation." }, { status: 409 });
+    }
     const recipientId = (access.conversation.memberIds as string[]).find((id) => id !== user.id);
     if (!recipientId) return NextResponse.json({ error: "Conversation recipient is unavailable." }, { status: 409 });
 
@@ -83,6 +87,9 @@ export async function POST(request: Request, context: RouteContext) {
       clientMessageId: parsed.data.clientMessageId,
       text: parsed.data.text,
       createdAt: now,
+      realtimePending: true,
+      realtimeNextAttemptAt: now,
+      realtimeAttempts: 0,
     };
     let saved;
     try {
@@ -102,13 +109,13 @@ export async function POST(request: Request, context: RouteContext) {
       { _id: access.conversation._id }, { $set: { updatedAt: now, lastMessageAt: now } },
     );
 
+    // Drain through the same atomic lease/retry path used by the scheduled worker.
+    // The message itself is the durable outbox record, so a process restart cannot lose it.
     try {
-      await getAblyRest().channels.get(conversationChannel(conversationId)).publish("message.created", {
-        id: saved._id.toString(), conversationId, text: saved.text, senderId: user.id,
-        recipientId, createdAt: saved.createdAt, clientMessageId: saved.clientMessageId,
-      });
+      const { drainRealtimeOutbox } = await import("@/lib/realtime-outbox");
+      await drainRealtimeOutbox(access.db, 1, saved._id);
     } catch (error) {
-      console.error("Realtime publish deferred; message remains persisted:", error instanceof Error ? error.message : "Unknown error");
+      console.error("Immediate realtime delivery attempt deferred:", error instanceof Error ? error.message : "Unknown error");
     }
 
     return NextResponse.json({ message: {
@@ -135,6 +142,9 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (!parsed.success) return NextResponse.json({ error: "Provide valid message IDs." }, { status: 400 });
     const access = await getMemberContext(conversationId, user.id);
     if (!access) return NextResponse.json({ error: "Conversation not found." }, { status: 404 });
+    if (access.conversation.encryptionMode === "MLS_V1") {
+      return NextResponse.json({ error: "Plaintext messaging is disabled for this encrypted conversation." }, { status: 409 });
+    }
     const ids = [...new Set(parsed.data.messageIds)].map((id) => new ObjectId(id));
     const unreadMessages = await access.db.collection("messages").find(
       { _id: { $in: ids }, conversationId: access.conversation._id, recipientId: user.id, readAt: { $exists: false } },
@@ -145,16 +155,15 @@ export async function PATCH(request: Request, context: RouteContext) {
     const result = eligibleIds.length
       ? await access.db.collection("messages").updateMany(
           { _id: { $in: eligibleIds }, conversationId: access.conversation._id, recipientId: user.id, readAt: { $exists: false } },
-          { $set: { readAt: now, deliveredAt: now } },
+          { $set: { readAt: now, deliveredAt: now, readReceiptPending: true } },
         )
       : { modifiedCount: 0 };
-    if (eligibleIds.length > 0) {
+    if (result.modifiedCount > 0) {
       try {
-        await getAblyRest().channels.get(conversationChannel(conversationId)).publish("message.read", {
-          messageIds: eligibleIds.map((id) => id.toString()), readerId: user.id, readAt: now,
-        });
+        const { drainRealtimeOutbox } = await import("@/lib/realtime-outbox");
+        await drainRealtimeOutbox(access.db, Math.min(50, result.modifiedCount));
       } catch (error) {
-        console.error("Read receipt realtime publish failed:", error instanceof Error ? error.message : "Unknown error");
+        console.error("Read receipt outbox attempt deferred:", error instanceof Error ? error.message : "Unknown error");
       }
     }
     return NextResponse.json({ updated: result.modifiedCount, readAt: now });

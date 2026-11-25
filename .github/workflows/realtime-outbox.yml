@@ -1,0 +1,35 @@
+name: Realtime outbox recovery
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: realtime-outbox-recovery
+  cancel-in-progress: false
+
+jobs:
+  drain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Validate scheduler configuration
+        env:
+          BINARY_CHAT_BASE_URL: ${{ vars.BINARY_CHAT_BASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          test -n "$BINARY_CHAT_BASE_URL" || { echo "Set the BINARY_CHAT_BASE_URL repository variable."; exit 1; }
+          test -n "$CRON_SECRET" || { echo "Set the CRON_SECRET repository secret."; exit 1; }
+      - name: Drain pending realtime messages
+        env:
+          BINARY_CHAT_BASE_URL: ${{ vars.BINARY_CHAT_BASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl --fail-with-body --silent --show-error \
+            --retry 3 --retry-delay 5 --retry-all-errors \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$BINARY_CHAT_BASE_URL/api/internal/realtime-outbox"

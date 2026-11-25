@@ -5,10 +5,11 @@ import { useRouter } from "next/navigation";
 import { loadAblyBrowserSdk, type AblyClientMessage, type AblyPresenceMessage, type AblyRealtimeClient } from "@/lib/ably-browser";
 import { Bell, Check, CheckCheck, ChevronDown, CircleHelp, Eye, EyeOff, LockKeyhole, MessageCircle, MoreHorizontal, Plus, Search, Send, Settings2, ShieldCheck, Smile, Sparkles, Wifi, X, LogOut, LoaderCircle, UserRoundPlus, Save, Trash2 } from "lucide-react";
 import { textToBinary } from "@/lib/binary";
+import { enqueueOfflineMessage, listOfflineMessages, removeOfflineMessage, type OfflineQueuedMessage } from "@/lib/offline-message-queue";
 
 type ApiMember = { id: string; phone: string; displayName: string; avatarUrl: string };
 type ApiMessage = { id: string; text: string; senderId: string; recipientId: string; createdAt: string; deliveredAt?: string | null; readAt?: string | null; clientMessageId: string };
-type ChatMessage = { id: string; text: string; time: string; mine: boolean; read?: boolean; delivered?: boolean; createdAt: string; clientMessageId?: string };
+type ChatMessage = { id: string; text: string; time: string; mine: boolean; read?: boolean; delivered?: boolean; createdAt: string; clientMessageId?: string; deliveryStatus?: "queued" | "sending" };
 type Conversation = { id: string; userId: string; name: string; initials: string; color: string; status: string; preview: string; time: string; unread: number; online: boolean; messages: ChatMessage[] };
 type Contact = { id: string; phone: string; displayName: string; avatarUrl: string };
 
@@ -27,6 +28,9 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
   const [loadingChats, setLoadingChats] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
+  const [offlineQueue, setOfflineQueue] = useState<OfflineQueuedMessage[]>([]);
+  const [offlineQueueLoaded, setOfflineQueueLoaded] = useState(false);
+  const [networkRevision, setNetworkRevision] = useState(0);
   const [error, setError] = useState("");
   const [realtimeStatus, setRealtimeStatus] = useState<"connecting" | "connected" | "offline">("connecting");
   const [contactOpen, setContactOpen] = useState(false);
@@ -46,6 +50,12 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
   const [deletingAccount, setDeletingAccount] = useState(false);
   const realtimeRef = useRef<AblyRealtimeClient | null>(null);
   const subscribedRef = useRef<Set<string>>(new Set());
+  const activeIdRef = useRef(activeId);
+  const sendingQueueRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    activeIdRef.current = activeId;
+  }, [activeId]);
 
   const activeChat = chats.find((chat) => chat.id === activeId) ?? null;
   const filteredChats = useMemo(() => chats.filter((chat) => chat.name.toLowerCase().includes(query.toLowerCase()) || chat.preview.toLowerCase().includes(query.toLowerCase())), [chats, query]);
@@ -53,7 +63,7 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
   const refreshConversations = useCallback(async () => {
     const response = await fetch("/api/conversations", { cache: "no-store" });
     if (!response.ok) throw new Error((await response.json().catch(() => null))?.error ?? "Could not load conversations.");
-    const data = await response.json() as { conversations: Array<{ id: string; members: ApiMember[]; latestMessage: { text: string; senderId: string; createdAt: string } | null; updatedAt: string }> };
+    const data = await response.json() as { conversations: Array<{ id: string; members: ApiMember[]; latestMessage: { text: string; senderId: string; createdAt: string } | null; unreadCount: number; updatedAt: string }> };
     const next: Conversation[] = data.conversations.map((item, index) => {
       const other = item.members.find((member) => member.id !== userId);
       const name = other?.displayName || other?.phone || "Unknown contact";
@@ -61,12 +71,12 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
         id: item.id, userId: other?.id ?? "", name, initials: initialsFor(name),
         color: avatarColors[index % avatarColors.length], status: "last seen recently",
         preview: item.latestMessage?.text ?? "Start a conversation", time: item.latestMessage ? formatTime(item.latestMessage.createdAt) : "",
-        unread: 0, online: false, messages: [],
+        unread: item.unreadCount, online: false, messages: [],
       };
     });
     setChats((current) => next.map((item) => {
       const previous = current.find((chat) => chat.id === item.id);
-      return previous ? { ...item, messages: previous.messages, online: previous.online, unread: previous.unread } : item;
+      return previous ? { ...item, messages: previous.messages, online: previous.online } : item;
     }));
     setActiveId((current) => current && next.some((item) => item.id === current) ? current : (next[0]?.id ?? ""));
   }, [userId]);
@@ -84,6 +94,72 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
     })();
     return () => { cancelled = true; };
   }, [refreshConversations]);
+
+  useEffect(() => {
+    if (loadingChats || offlineQueueLoaded) return;
+    let cancelled = false;
+    void listOfflineMessages(userId).then((items) => {
+      if (cancelled) return;
+      setOfflineQueue(items);
+      setChats((current) => current.map((chat) => {
+        const restored = items.filter((item) => item.conversationId === chat.id).map((item) => ({
+          id: item.clientMessageId, clientMessageId: item.clientMessageId, text: item.text, mine: true,
+          time: formatTime(item.createdAt), createdAt: item.createdAt, deliveryStatus: "queued" as const,
+        }));
+        const existing = new Set(chat.messages.map((message) => message.clientMessageId ?? message.id));
+        const additions = restored.filter((message) => !existing.has(message.clientMessageId));
+        return additions.length ? { ...chat, messages: [...chat.messages, ...additions], preview: additions.at(-1)?.text ?? chat.preview } : chat;
+      }));
+    }).catch(() => {
+      if (!cancelled) setError("Offline message storage is unavailable. Please keep your draft until storage is restored.");
+    }).finally(() => { if (!cancelled) setOfflineQueueLoaded(true); });
+    return () => { cancelled = true; };
+  }, [loadingChats, offlineQueueLoaded, userId]);
+
+  useEffect(() => {
+    const onOnline = () => setNetworkRevision((value) => value + 1);
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, []);
+
+  const transmitQueuedMessage = useCallback(async (item: OfflineQueuedMessage) => {
+    const key = `${item.userId}:${item.conversationId}:${item.clientMessageId}`;
+    if (sendingQueueRef.current.has(key)) return;
+    sendingQueueRef.current.add(key);
+    setChats((current) => current.map((chat) => chat.id === item.conversationId ? {
+      ...chat, messages: chat.messages.map((message) => message.clientMessageId === item.clientMessageId || message.id === item.clientMessageId ? { ...message, deliveryStatus: "sending" } : message),
+    } : chat));
+    try {
+      const response = await fetch(`/api/conversations/${item.conversationId}/messages`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: item.text, clientMessageId: item.clientMessageId }),
+      });
+      const data = await response.json() as { message?: ApiMessage; error?: string };
+      if (!response.ok || !data.message) throw new Error(data.error ?? "Message could not be sent.");
+      await removeOfflineMessage(item);
+      setOfflineQueue((current) => current.filter((queued) => queued.clientMessageId !== item.clientMessageId || queued.conversationId !== item.conversationId));
+      const saved = data.message;
+      setChats((current) => current.map((chat) => chat.id === item.conversationId ? {
+        ...chat, preview: saved.text, time: formatTime(saved.createdAt),
+        messages: chat.messages.map((message) => message.clientMessageId === item.clientMessageId || message.id === item.clientMessageId ? {
+          ...message, id: saved.id, createdAt: saved.createdAt, time: formatTime(saved.createdAt), deliveryStatus: undefined,
+        } : message),
+      } : chat));
+    } catch {
+      setChats((current) => current.map((chat) => chat.id === item.conversationId ? {
+        ...chat, messages: chat.messages.map((message) => message.clientMessageId === item.clientMessageId || message.id === item.clientMessageId ? { ...message, deliveryStatus: "queued" } : message),
+      } : chat));
+    } finally {
+      sendingQueueRef.current.delete(key);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!offlineQueueLoaded || offlineQueue.length === 0 || !navigator.onLine) return;
+    void Promise.all(offlineQueue.map((item) => transmitQueuedMessage(item)));
+    const retry = window.setTimeout(() => setNetworkRevision((value) => value + 1), 10_000);
+    return () => window.clearTimeout(retry);
+  }, [offlineQueue, offlineQueueLoaded, realtimeStatus, networkRevision, transmitQueuedMessage]);
 
   useEffect(() => {
     if (!revealedId) return;
@@ -157,11 +233,11 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
           const messages = optimisticIndex >= 0
             ? item.messages.map((existing, index) => index === optimisticIndex ? message : existing)
             : alreadySaved ? item.messages : [...item.messages, message];
-          return { ...item, preview: message.text, time: message.time, messages, unread: message.mine || activeId === chat.id ? 0 : item.unread + 1 };
+          return { ...item, preview: message.text, time: message.time, messages, unread: message.mine || activeIdRef.current === chat.id ? 0 : item.unread + 1 };
         }));
         if (payload.senderId !== userId) {
           void fetch(`/api/conversations/${chat.id}/messages`, { cache: "no-store" }).then((response) => response.json()).then((data: { messages?: ApiMessage[] }) => {
-            if (activeId !== chat.id) return;
+            if (activeIdRef.current !== chat.id) return;
             const ids = (data.messages ?? []).filter((item) => item.senderId !== userId && !item.readAt).map((item) => item.id);
             if (ids.length) void fetch(`/api/conversations/${chat.id}/messages`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messageIds: ids }) });
           }).catch(() => undefined);
@@ -191,7 +267,7 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
         if (member.clientId && member.clientId !== userId) setOnlineUsers((current) => ({ ...current, [member.clientId!]: true }));
       })).catch(() => undefined);
     }
-  }, [chats, activeId, realtimeStatus, userId]);
+  }, [chats, realtimeStatus, userId]);
 
   const activeConversationId = activeChat?.id;
 
@@ -207,10 +283,15 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
         if (!response.ok) throw new Error(data.error ?? "Could not load messages.");
         const messages = (data.messages ?? []).map((item) => ({
           id: item.id, text: item.text, mine: item.senderId === userId, time: formatTime(item.createdAt),
-          createdAt: item.createdAt, delivered: Boolean(item.deliveredAt), read: Boolean(item.readAt),
+          createdAt: item.createdAt, delivered: Boolean(item.deliveredAt), read: Boolean(item.readAt), clientMessageId: item.clientMessageId,
         }));
         if (!cancelled) {
-          setChats((current) => current.map((chat) => chat.id === activeConversationId ? { ...chat, messages, preview: messages.at(-1)?.text ?? "Start a conversation" } : chat));
+          setChats((current) => current.map((chat) => {
+            if (chat.id !== activeConversationId) return chat;
+            const pending = chat.messages.filter((message) => message.deliveryStatus === "queued" || message.deliveryStatus === "sending");
+            const ids = new Set(messages.map((message) => message.clientMessageId ?? message.id));
+            return { ...chat, messages: [...messages, ...pending.filter((message) => !ids.has(message.clientMessageId ?? message.id))], preview: pending.at(-1)?.text ?? messages.at(-1)?.text ?? "Start a conversation" };
+          }));
           const unreadIds = (data.messages ?? []).filter((item) => item.senderId !== userId && !item.readAt).map((item) => item.id);
           if (unreadIds.length) {
             await fetch(`/api/conversations/${activeConversationId}/messages`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messageIds: unreadIds }) });
@@ -310,25 +391,21 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
     setSending(true);
     setError("");
     const clientMessageId = crypto.randomUUID();
-    const optimistic: ChatMessage = { id: clientMessageId, clientMessageId, text, time: formatTime(new Date()), createdAt: new Date().toISOString(), mine: true };
+    const createdAt = new Date().toISOString();
+    const queued: OfflineQueuedMessage = { userId, conversationId: activeChat.id, clientMessageId, text, createdAt };
+    try {
+      await enqueueOfflineMessage(queued);
+    } catch {
+      setError("Could not safely save this message for retry. Your draft has been kept.");
+      setSending(false);
+      return;
+    }
+    setOfflineQueue((current) => [...current, queued]);
+    const optimistic: ChatMessage = { id: clientMessageId, clientMessageId, text, time: formatTime(new Date()), createdAt, mine: true, deliveryStatus: "queued" };
     setChats((current) => current.map((chat) => chat.id === activeChat.id ? { ...chat, preview: text, time: optimistic.time, messages: [...chat.messages, optimistic] } : chat));
     setDraft("");
     try {
-      const response = await fetch(`/api/conversations/${activeConversationId}/messages`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text, clientMessageId }),
-      });
-      const data = await response.json() as { message?: ApiMessage; error?: string };
-      if (!response.ok || !data.message) throw new Error(data.error ?? "Message could not be sent.");
-      const saved = data.message;
-      setChats((current) => current.map((chat) => chat.id === activeChat.id ? {
-        ...chat, messages: chat.messages.map((message) => message.id === clientMessageId ? {
-          ...message, id: saved.id, createdAt: saved.createdAt, time: formatTime(saved.createdAt),
-        } : message),
-      } : chat));
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Message could not be sent.");
-      setChats((current) => current.map((chat) => chat.id === activeChat.id ? { ...chat, messages: chat.messages.filter((message) => message.id !== clientMessageId) } : chat));
-      setDraft(text);
+      await transmitQueuedMessage(queued);
     } finally {
       setSending(false);
     }
@@ -403,7 +480,7 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
             <div className="encryption-banner"><LockKeyhole size={13} /><span>Messages are displayed in binary on your screen.</span><button aria-label="About binary display"><CircleHelp size={14} /></button></div>
             {loadingMessages && <div className="empty-state"><LoaderCircle size={18} className="spin" /> Loading messages</div>}
             {!loadingMessages && activeChat.messages.length === 0 && <div className="empty-state"><MessageCircle size={22} /><strong>No messages yet</strong><span>Say hello to start this conversation.</span></div>}
-            <div className="messages">{activeChat.messages.map((message) => { const isRevealed = revealedId === message.id; return <div key={message.id} className={`message-line ${message.mine ? "mine" : "theirs"}`}><div className={`message-bubble ${message.mine ? "bubble-mine" : "bubble-theirs"}`}><p className={`message-content ${!isRevealed ? "binary-text" : ""}`}>{isRevealed ? message.text : textToBinary(message.text)}</p><div className="message-footer"><span>{message.time}</span>{message.mine && (message.read ? <CheckCheck size={14} className="read-check" /> : message.delivered ? <CheckCheck size={14} /> : <Check size={14} />)}<button className={`reveal-button ${isRevealed ? "revealing" : ""}`} onClick={() => toggleReveal(message.id)} aria-label={isRevealed ? "Hide original message" : "Reveal original message for five seconds"} title={isRevealed ? "Hide message" : "Reveal for 5 seconds"}>{isRevealed ? <EyeOff size={13} /> : <Eye size={13} />}</button>{isRevealed && <span className="reveal-count">{secondsLeft}s</span>}</div></div></div>; })}</div>
+            <div className="messages">{activeChat.messages.map((message) => { const isRevealed = revealedId === message.id; return <div key={message.id} className={`message-line ${message.mine ? "mine" : "theirs"}`}><div className={`message-bubble ${message.mine ? "bubble-mine" : "bubble-theirs"}`}><p className={`message-content ${!isRevealed ? "binary-text" : ""}`}>{isRevealed ? message.text : textToBinary(message.text)}</p><div className="message-footer"><span>{message.time}</span>{message.deliveryStatus && <span role="status">{message.deliveryStatus === "sending" ? "Sending…" : "Queued"}</span>}{message.mine && !message.deliveryStatus && (message.read ? <CheckCheck size={14} className="read-check" /> : message.delivered ? <CheckCheck size={14} /> : <Check size={14} />)}<button className={`reveal-button ${isRevealed ? "revealing" : ""}`} onClick={() => toggleReveal(message.id)} aria-label={isRevealed ? "Hide original message" : "Reveal original message for five seconds"} title={isRevealed ? "Hide message" : "Reveal for 5 seconds"}>{isRevealed ? <EyeOff size={13} /> : <Eye size={13} />}</button>{isRevealed && <span className="reveal-count">{secondsLeft}s</span>}</div></div></div>; })}</div>
           </> : <div className="empty-state empty-welcome"><div className="welcome-orbit"><span>010</span><b>101</b><span>110</span></div><strong>Your conversations start here.</strong><span>Find someone by phone number to send your first message.</span><button className="start-chat-button" onClick={() => setContactOpen(true)}><UserRoundPlus size={15} /> New conversation</button></div>}
         </div>
         {activeChat && <form className="composer" onSubmit={sendMessage}><button type="button" className="icon-button composer-tool" aria-label="Emoji"><Smile size={19} /></button><input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Write a message..." aria-label="Message text" /><span className="composer-hint">ENTER ↵</span><button type="submit" className="send-button" disabled={!draft.trim() || sending} aria-label="Send message">{sending ? <LoaderCircle size={17} className="spin" /> : <Send size={17} />}</button></form>}
