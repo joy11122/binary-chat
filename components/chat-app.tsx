@@ -122,7 +122,7 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
     return () => window.removeEventListener("online", onOnline);
   }, []);
 
-  async function transmitQueuedMessage(item: OfflineQueuedMessage) {
+  const transmitQueuedMessage = useCallback(async (item: OfflineQueuedMessage) => {
     const key = `${item.userId}:${item.conversationId}:${item.clientMessageId}`;
     if (sendingQueueRef.current.has(key)) return;
     sendingQueueRef.current.add(key);
@@ -152,14 +152,14 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
     } finally {
       sendingQueueRef.current.delete(key);
     }
-  }
+  }, []);
 
   useEffect(() => {
     if (!offlineQueueLoaded || offlineQueue.length === 0 || !navigator.onLine) return;
     void Promise.all(offlineQueue.map((item) => transmitQueuedMessage(item)));
     const retry = window.setTimeout(() => setNetworkRevision((value) => value + 1), 10_000);
     return () => window.clearTimeout(retry);
-  }, [offlineQueue, offlineQueueLoaded, realtimeStatus, networkRevision]);
+  }, [offlineQueue, offlineQueueLoaded, realtimeStatus, networkRevision, transmitQueuedMessage]);
 
   useEffect(() => {
     if (!revealedId) return;
