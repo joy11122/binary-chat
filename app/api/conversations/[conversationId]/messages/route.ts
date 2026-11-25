@@ -3,7 +3,7 @@ import { ObjectId } from "mongodb";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth/session";
 import { consumeRateLimit } from "@/lib/auth/rate-limit";
-import { conversationChannel, ensureMessagingIndexes, getAblyRest, isObjectId } from "@/lib/messaging";
+import { ensureMessagingIndexes, isObjectId } from "@/lib/messaging";
 
 export const runtime = "nodejs";
 const sendSchema = z.object({
@@ -34,20 +34,18 @@ export async function GET(request: Request, context: RouteContext) {
     const before = url.searchParams.get("before");
     const filter: Record<string, unknown> = { conversationId: access.conversation._id };
     if (before && !Number.isNaN(Date.parse(before))) filter.createdAt = { $lt: new Date(before) };
-    const messages = await access.db.collection("messages").find(filter).sort({ createdAt: -1 }).limit(50).toArray();
-    const delivered = await access.db.collection("messages").updateMany(
+    const deliveredAt = new Date();
+    await access.db.collection("messages").updateMany(
       { conversationId: access.conversation._id, recipientId: user.id, deliveredAt: { $exists: false } },
-      { $set: { deliveredAt: new Date() } },
+      { $set: { deliveredAt, deliveryReceiptPending: true } },
     );
-    if (delivered.modifiedCount > 0) {
-      try {
-        await getAblyRest().channels.get(conversationChannel(conversationId)).publish("message.delivered", {
-          recipientId: user.id, deliveredAt: new Date(),
-        });
-      } catch (error) {
-        console.error("Delivery receipt realtime publish failed:", error instanceof Error ? error.message : "Unknown error");
-      }
+    try {
+      const { drainRealtimeOutbox } = await import("@/lib/realtime-outbox");
+      await drainRealtimeOutbox(access.db, 10);
+    } catch (error) {
+      console.error("Delivery receipt outbox attempt deferred:", error instanceof Error ? error.message : "Unknown error");
     }
+    const messages = await access.db.collection("messages").find(filter).sort({ createdAt: -1 }).limit(50).toArray();
     return NextResponse.json({ messages: messages.reverse().map((message) => ({
       id: message._id.toString(), text: message.text, senderId: message.senderId,
       recipientId: message.recipientId, createdAt: message.createdAt,
@@ -148,16 +146,15 @@ export async function PATCH(request: Request, context: RouteContext) {
     const result = eligibleIds.length
       ? await access.db.collection("messages").updateMany(
           { _id: { $in: eligibleIds }, conversationId: access.conversation._id, recipientId: user.id, readAt: { $exists: false } },
-          { $set: { readAt: now, deliveredAt: now } },
+          { $set: { readAt: now, deliveredAt: now, readReceiptPending: true } },
         )
       : { modifiedCount: 0 };
-    if (eligibleIds.length > 0) {
+    if (result.modifiedCount > 0) {
       try {
-        await getAblyRest().channels.get(conversationChannel(conversationId)).publish("message.read", {
-          messageIds: eligibleIds.map((id) => id.toString()), readerId: user.id, readAt: now,
-        });
+        const { drainRealtimeOutbox } = await import("@/lib/realtime-outbox");
+        await drainRealtimeOutbox(access.db, Math.min(50, result.modifiedCount));
       } catch (error) {
-        console.error("Read receipt realtime publish failed:", error instanceof Error ? error.message : "Unknown error");
+        console.error("Read receipt outbox attempt deferred:", error instanceof Error ? error.message : "Unknown error");
       }
     }
     return NextResponse.json({ updated: result.modifiedCount, readAt: now });
