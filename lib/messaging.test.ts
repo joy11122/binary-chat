@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { conversationChannel, isObjectId, normalizeMemberKey } from "./messaging-utils";
 import { buildMessageCreatedEvent, realtimeRetryDelayMs } from "./realtime-outbox-utils";
+import { offlineMessageKey } from "./offline-message-queue";
 
 describe("messaging helpers", () => {
   it("creates stable member keys regardless of input order", () => {
@@ -47,5 +48,14 @@ describe("realtime outbox helpers", () => {
       createdAt,
       clientMessageId: "client-1",
     });
+  });
+});
+
+describe("offline message queue helpers", () => {
+  it("scopes queued message keys by user, conversation, and client message ID", () => {
+    const base = { userId: "user-1", conversationId: "conversation-1", clientMessageId: "client-1" };
+    expect(offlineMessageKey(base)).toBe("user-1:conversation-1:client-1");
+    expect(offlineMessageKey({ ...base, userId: "user-2" })).not.toBe(offlineMessageKey(base));
+    expect(offlineMessageKey({ ...base, conversationId: "conversation-2" })).not.toBe(offlineMessageKey(base));
   });
 });
