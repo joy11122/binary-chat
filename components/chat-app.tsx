@@ -58,7 +58,7 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
   const refreshConversations = useCallback(async () => {
     const response = await fetch("/api/conversations", { cache: "no-store" });
     if (!response.ok) throw new Error((await response.json().catch(() => null))?.error ?? "Could not load conversations.");
-    const data = await response.json() as { conversations: Array<{ id: string; members: ApiMember[]; latestMessage: { text: string; senderId: string; createdAt: string } | null; updatedAt: string }> };
+    const data = await response.json() as { conversations: Array<{ id: string; members: ApiMember[]; latestMessage: { text: string; senderId: string; createdAt: string } | null; unreadCount: number; updatedAt: string }> };
     const next: Conversation[] = data.conversations.map((item, index) => {
       const other = item.members.find((member) => member.id !== userId);
       const name = other?.displayName || other?.phone || "Unknown contact";
@@ -66,12 +66,12 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
         id: item.id, userId: other?.id ?? "", name, initials: initialsFor(name),
         color: avatarColors[index % avatarColors.length], status: "last seen recently",
         preview: item.latestMessage?.text ?? "Start a conversation", time: item.latestMessage ? formatTime(item.latestMessage.createdAt) : "",
-        unread: 0, online: false, messages: [],
+        unread: item.unreadCount, online: false, messages: [],
       };
     });
     setChats((current) => next.map((item) => {
       const previous = current.find((chat) => chat.id === item.id);
-      return previous ? { ...item, messages: previous.messages, online: previous.online, unread: previous.unread } : item;
+      return previous ? { ...item, messages: previous.messages, online: previous.online } : item;
     }));
     setActiveId((current) => current && next.some((item) => item.id === current) ? current : (next[0]?.id ?? ""));
   }, [userId]);
