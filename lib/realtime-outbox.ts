@@ -72,7 +72,7 @@ export async function drainRealtimeOutbox(db: Db, limit = 50): Promise<RealtimeO
       if (marked.modifiedCount === 1) result.published += 1;
     } catch (error) {
       await messages.updateOne(
-        { _id: claimed._id, realtimeLeaseToken: leaseToken, realtimePublishedAt: { $exists: false } },
+        { _id: claimed._id, realtimeLeaseToken: leaseToken, realtimePending: true },
         {
           $set: {
             realtimeNextAttemptAt: new Date(Date.now() + realtimeRetryDelayMs(attempts)),
