@@ -21,6 +21,7 @@ export async function ensureMessagingIndexes() {
     db.collection("messages").createIndex({ conversationId: 1, senderId: 1, clientMessageId: 1 }, { unique: true, name: "message_idempotency_unique" }),
     db.collection("messages").createIndex({ recipientId: 1, deliveredAt: 1 }, { name: "messages_pending_delivery" }),
     db.collection("messages").createIndex({ conversationId: 1, recipientId: 1, readAt: 1, createdAt: -1 }, { name: "messages_conversation_unread" }),
+    db.collection("messages").createIndex({ realtimePublishedAt: 1, realtimeNextAttemptAt: 1, realtimeLeaseUntil: 1, createdAt: 1 }, { name: "messages_realtime_outbox" }),
   ]);
   return db;
 }
