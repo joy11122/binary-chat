@@ -18,3 +18,25 @@ export function buildMessageCreatedEvent(message: Document) {
     clientMessageId: String(message.clientMessageId),
   };
 }
+
+export function buildReceiptEvent(kind: "delivery" | "read", message: Document) {
+  if (kind === "delivery") {
+    return {
+      name: "message.delivered",
+      payload: {
+        messageIds: [String(message._id)],
+        recipientId: String(message.recipientId),
+        deliveredAt: message.deliveredAt,
+      },
+    };
+  }
+
+  return {
+    name: "message.read",
+    payload: {
+      messageIds: [String(message._id)],
+      readerId: String(message.recipientId),
+      readAt: message.readAt,
+    },
+  };
+}
