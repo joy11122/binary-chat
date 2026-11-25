@@ -56,9 +56,7 @@ Maven Central's published POM identifies:
 
 The official vendor integration instructions also list AndroidX SQLite 2.7.0 and require loading the native library with `System.loadLibrary("sqlcipher")`.
 
-**Unverified:** the exact AAR bytes, independently computed SHA-256, embedded JNI library names and ELF build IDs, actual ABI directories, embedded notices, Maven signature/checksum files, Gradle module metadata, and a verifiable build-provenance statement.
-
-The AAR download and inspection were not completed in this environment. No checksum is asserted here.
+**Verified in the supplied archive follow-up (2026-11-25):** the exact user-supplied AAR bytes, SHA-256, ZIP structure, JNI library names, ELF machine types, ABI directories, and ELF build IDs were inspected. The detached Maven signature/checksum metadata, Gradle module metadata, publisher provenance, and source-to-binary correspondence remain unverified. The AAR contains no embedded publisher signature or license-notice files.
 
 ## 4. Source license observations
 
@@ -72,7 +70,7 @@ Before adoption, legal review must resolve the selected LibTomCrypt licensing ba
 
 1. **Source authenticity — partial pass.** The upstream annotated tag signature verifies, and exact submodule commits are pinned. This is useful source identity evidence only.
 2. **Artifact-to-source correspondence — unresolved.** No signed attestation or reproducible build links the published Maven AAR to the inspected source commit and submodules.
-3. **Binary inspection — not performed.** Native ABI contents, symbols, build IDs, packaged notices, and dependency metadata inside the AAR remain unknown.
+3. **Binary inspection — partial pass.** The supplied AAR contains the four expected ABI directories and Android ELF shared libraries with matching machine types and NDK r25c metadata. Build IDs are recorded in Section 8. Exported-symbol review, detached publisher metadata, and complete notice/dependency closure remain outstanding.
 4. **License closure — unresolved.** The LibTomCrypt dual-license declaration requires an explicit legal determination for the actual compiled/distributed contents. SQLite's bundled notices also need to be checked against the AAR.
 5. **Reproducibility — not demonstrated.** The source build recipe is discoverable, but no clean-room build and byte-for-byte or explainable comparison has been completed.
 6. **Security validation — not performed.** No independent source audit, SBOM, vulnerability review, or physical-device storage lifecycle test has been completed.
@@ -91,3 +89,36 @@ Before adoption, legal review must resolve the selected LibTomCrypt licensing ba
 ## 7. Final decision
 
 **NO-GO remains in force.** The public source tag and build recipe are identifiable, but this does not authenticate the separately published AAR. Binary Chat must not add this dependency to Gradle or enable persistent MLS state until the exact artifact, license, reproducibility, and independent security gates are evidenced and approved.
+
+
+## 8. Supplied AAR archive inspection — 2026-11-25
+
+The exact user-supplied file `sqlcipher_android_4.20.0.aar` was materialized from the user's Library and inspected locally.
+
+- File size: **4,050,842 bytes**.
+- SHA-256: `1e57857adfd29e2f5ddb4686e1e5ec6659920220d4bf182fdb5ef085b5577100`.
+- ZIP integrity test: passed; 17 entries.
+- The archive contains `classes.jar`, `AndroidManifest.xml`, AAR metadata, ProGuard rules, and four JNI libraries.
+- Manifest minimum SDK: 23. AAR metadata minimum compile SDK: 36.
+- Native library details:
+
+| ABI directory | ELF machine | NDK metadata | ELF Build ID |
+|---|---|---|---|
+| `arm64-v8a` | AArch64, ELF64 | NDK r25c (9519653) | `1b348706fdfc4606ad9f48c4ac0ff32a7c668004` |
+| `armeabi-v7a` | ARM EABI5, ELF32 | NDK r25c (9519653) | `1167e1d930b71c86a75780d2ff410fbf45921f56` |
+| `x86` | Intel 80386, ELF32 | NDK r25c (9519653) | `ceaabb9fcee70dedb7c87c93d0542ae10d2aa5ec` |
+| `x86_64` | AMD x86-64, ELF64 | NDK r25c (9519653) | `bb0c7af1a27eb135809da9327280970f84ca9108` |
+
+The AAR contains no publisher signature or license-notice files. A successful ZIP test and matching ELF ABI metadata establish archive integrity and structure only; they do not prove publisher authenticity or that the binaries were built from the inspected source commit.
+
+### Remaining blockers
+
+- [ ] Validate detached Maven Central checksum/signature metadata for the exact downloaded bytes.
+- [ ] Inspect Maven POM, Gradle module metadata, dependency graph, and transitive dependency licenses.
+- [ ] Review exported native symbols and binary strings against the pinned source build.
+- [ ] Reproduce the AAR from source commit `94bdf2589942b11a53b7d9a005d5c1e66920d4e8` and pinned submodules, or obtain credible signed vendor build provenance.
+- [ ] Resolve LibTomCrypt license selection and verify complete binary redistribution notices.
+- [ ] Generate SBOM and vulnerability report for the exact AAR and dependencies.
+- [ ] Obtain independent security review and physical-device storage lifecycle validation.
+
+**Decision remains NO-GO.** No Gradle dependency, native code, app storage, or runtime behavior was changed by this inspection.
