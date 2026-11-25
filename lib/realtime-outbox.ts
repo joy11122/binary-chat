@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { Db, Document } from "mongodb";
+import type { Db, Document, ObjectId } from "mongodb";
 import { conversationChannel, getAblyRest } from "@/lib/messaging";
 import { buildMessageCreatedEvent, realtimeRetryDelayMs } from "@/lib/realtime-outbox-utils";
 
@@ -10,7 +10,7 @@ export type RealtimeOutboxDrainResult = {
   deferred: number;
 };
 
-export async function drainRealtimeOutbox(db: Db, limit = 50): Promise<RealtimeOutboxDrainResult> {
+export async function drainRealtimeOutbox(db: Db, limit = 50, onlyMessageId?: ObjectId): Promise<RealtimeOutboxDrainResult> {
   const result: RealtimeOutboxDrainResult = { attempted: 0, published: 0, deferred: 0 };
   const messages = db.collection<Document>("messages");
 
@@ -19,6 +19,7 @@ export async function drainRealtimeOutbox(db: Db, limit = 50): Promise<RealtimeO
     const claimedAt = new Date();
     const claimed = await messages.findOneAndUpdate(
       {
+        ...(onlyMessageId ? { _id: onlyMessageId } : {}),
         realtimePending: true,
         $and: [
           { $or: [{ realtimeNextAttemptAt: { $exists: false } }, { realtimeNextAttemptAt: { $lte: claimedAt } }] },
