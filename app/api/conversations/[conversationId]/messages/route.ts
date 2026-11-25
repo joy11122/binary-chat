@@ -30,6 +30,9 @@ export async function GET(request: Request, context: RouteContext) {
     const { conversationId } = await context.params;
     const access = await getMemberContext(conversationId, user.id);
     if (!access) return NextResponse.json({ error: "Conversation not found." }, { status: 404 });
+    if (access.conversation.encryptionMode === "MLS_V1") {
+      return NextResponse.json({ error: "Plaintext messaging is disabled for this encrypted conversation." }, { status: 409 });
+    }
     const url = new URL(request.url);
     const before = url.searchParams.get("before");
     const filter: Record<string, unknown> = { conversationId: access.conversation._id };
@@ -70,6 +73,9 @@ export async function POST(request: Request, context: RouteContext) {
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid message." }, { status: 400 });
     const access = await getMemberContext(conversationId, user.id);
     if (!access) return NextResponse.json({ error: "Conversation not found." }, { status: 404 });
+    if (access.conversation.encryptionMode === "MLS_V1") {
+      return NextResponse.json({ error: "Plaintext messaging is disabled for this encrypted conversation." }, { status: 409 });
+    }
     const recipientId = (access.conversation.memberIds as string[]).find((id) => id !== user.id);
     if (!recipientId) return NextResponse.json({ error: "Conversation recipient is unavailable." }, { status: 409 });
 
@@ -136,6 +142,9 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (!parsed.success) return NextResponse.json({ error: "Provide valid message IDs." }, { status: 400 });
     const access = await getMemberContext(conversationId, user.id);
     if (!access) return NextResponse.json({ error: "Conversation not found." }, { status: 404 });
+    if (access.conversation.encryptionMode === "MLS_V1") {
+      return NextResponse.json({ error: "Plaintext messaging is disabled for this encrypted conversation." }, { status: 409 });
+    }
     const ids = [...new Set(parsed.data.messageIds)].map((id) => new ObjectId(id));
     const unreadMessages = await access.db.collection("messages").find(
       { _id: { $in: ids }, conversationId: access.conversation._id, recipientId: user.id, readAt: { $exists: false } },
