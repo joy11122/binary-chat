@@ -118,3 +118,39 @@ SQLCipher's database passphrase must be a cryptographically random per-install s
 - [ ] Independent security review signed off.
 
 **Current verdict: NO-GO.** This is a candidate inventory and audit plan, not a dependency approval. Phase 1.7C must not begin production storage implementation until every applicable gate above has an evidence artifact and an explicit review decision.
+
+
+## 9. Phase 1.7B follow-up — exact release metadata review (2026-11-25)
+
+This follow-up records public release metadata and source-tag evidence gathered after the preliminary audit. It does **not** constitute artifact extraction, binary inspection, independent provenance verification, or security approval.
+
+### Android 4.20.0
+
+- GitHub release: `v4.20.0`, published 2026-10-27; release metadata contains no attached binary assets. The Community AAR is separately published to Maven Central.
+- Annotated source tag object: `fd9265cfca1e419c1887752b9fb754232628807f`; target source commit: `94bdf2589942b11a53b7d9a005d5c1e66920d4e8`.
+- GitHub's tag verification API reports the Android tag signature as **verified / valid**. This authenticates the signed source tag under GitHub's verification result; it does not prove that the Maven AAR was built from that commit.
+- The v4.20.0 source README confirms Android API 23+ and ABIs `armeabi-v7a`, `x86`, `x86_64`, and `arm64-v8a`. It documents explicit loading of `libsqlcipher.so`.
+- Maven Central's published POM identifies packaging as AAR and declares compile dependency `org.jetbrains.kotlin:kotlin-stdlib:2.2.10` plus runtime dependency `androidx.sqlite:sqlite:2.7.0`. The upstream README also instructs consumers to include `androidx.sqlite:sqlite:2.7.0`.
+- The source repository uses SQLCipher core and LibTomCrypt Git submodules. The tag's submodule pointers are recorded in Section 5, but the exact Maven AAR has not been unpacked or matched to these source revisions.
+- The release tag and source tree are useful provenance evidence, but **the exact Maven AAR SHA-256, downloaded bytes, Gradle module metadata, signatures, JNI contents, ELF build IDs, exported symbols, and embedded notices remain unverified**. A Maven POM and a signed Git tag are not substitutes for an AAR checksum/provenance chain.
+
+### Apple 4.20.0
+
+- GitHub release metadata identifies `SQLCipher.xcframework.zip` as 50,874,674 bytes and reports SHA-256 `1505174fe7f8a0fe81d6ebf87a64b17701b500c12a445ef6b68b9159f012d747`.
+- The exact 4.20.0 `Package.swift` declares a `binaryTarget` URL for that archive and the same checksum. This establishes consistency between the package manifest and release metadata, but the archive bytes were not downloaded and independently hashed in this review.
+- The annotated tag object is `900525bc279abae927d487cbea2f76296c5a2afb`, targeting source commit `e7415c5e6b4fd9b78874bb956aad8a42b08e9966`. GitHub's tag verification API reports **unknown_key / not verified** for this signature. Do not interpret the presence of a PGP signature as verified authenticity.
+- The package manifest declares iOS 12 minimum and a binary-only XCFramework target. The README requires `SQLITE_HAS_CODEC=1` for Swift consumers (or `-DSQLITE_HAS_CODEC` for Objective-C consumers); this must be checked in both Debug and Release app configurations if the package is ever adopted.
+- The source LICENSE.md contains BSD-style attribution and binary redistribution notice requirements. This is a source license review only; the archive's full notices and third-party component inventory have not been inspected.
+
+### Updated decision
+
+**NO-GO remains unchanged for both platforms.**
+
+The immediate evidence blockers are:
+1. Obtain the exact Maven Central AAR and independently compute SHA-256; retain the downloaded artifact and repository metadata in an audit record.
+2. Compare AAR classes/JNI libraries/ABIs and native build metadata against the signed Android source tag and pinned submodules; reproduce the release build or obtain credible vendor build provenance.
+3. Obtain the Apple XCFramework archive, independently recompute the declared SHA-256, inspect every slice/architecture/minimum OS/linkage/signature and bundled notice, and resolve the unverified tag-signature identity through an independently trusted vendor key.
+4. Generate a dependency/SBOM and vulnerability inventory for the exact transitive dependency graph and native payloads.
+5. Obtain independent security review and complete physical-device lifecycle tests before any dependency or production persistence implementation is introduced.
+
+No application source, native bridge, Gradle/Swift manifest, Cargo manifest, lockfile, or runtime dependency was changed by this audit follow-up.
