@@ -24,6 +24,8 @@ export async function ensureMessagingIndexes() {
     db.collection("messages").createIndex({ realtimePending: 1, realtimeNextAttemptAt: 1, realtimeLeaseUntil: 1, createdAt: 1 }, { name: "messages_realtime_outbox" }),
     db.collection("messages").createIndex({ deliveryReceiptPending: 1, deliveryReceiptNextAttemptAt: 1, deliveryReceiptLeaseUntil: 1, createdAt: 1 }, { name: "messages_delivery_receipt_outbox" }),
     db.collection("messages").createIndex({ readReceiptPending: 1, readReceiptNextAttemptAt: 1, readReceiptLeaseUntil: 1, createdAt: 1 }, { name: "messages_read_receipt_outbox" }),
+    db.collection("e2eeMessages").createIndex({ conversationId: 1, createdAt: -1, _id: -1 }, { name: "e2ee_messages_conversation_created" }),
+    db.collection("e2eeMessages").createIndex({ conversationId: 1, senderId: 1, clientMessageId: 1 }, { unique: true, name: "e2ee_message_idempotency_unique" }),
   ]);
   return db;
 }
