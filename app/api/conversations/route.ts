@@ -22,7 +22,7 @@ export async function GET() {
         { $project: { phone: 1, displayName: 1, avatarUrl: 1 } },
       ], as: "members" } },
       { $lookup: { from: "messages", let: { conversationId: "$_id" }, pipeline: [
-        { $match: { $expr: { $eq: ["$conversationId", "$conversationId"] } } },
+        { $match: { $expr: { $eq: ["$conversationId", "$$conversationId"] } } },
         { $sort: { createdAt: -1 } }, { $limit: 1 },
         { $project: { text: 1, senderId: 1, createdAt: 1 } },
       ], as: "latestMessage" } },
@@ -30,7 +30,7 @@ export async function GET() {
         { $match: {
           recipientId: user.id,
           readAt: { $exists: false },
-          $expr: { $eq: ["$conversationId", "$conversationId"] },
+          $expr: { $eq: ["$conversationId", "$$conversationId"] },
         } },
         { $count: "total" },
       ], as: "unreadCount" } },
