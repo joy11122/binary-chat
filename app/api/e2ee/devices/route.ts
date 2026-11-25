@@ -10,7 +10,7 @@ import { verifyDeviceEnrollmentProof } from "@/lib/e2ee/device-enrollment";
 export const runtime = "nodejs";
 
 const requestSchema = z.object({
-  challengeId: z.string().regex(/^[a-f\\d]{24}$/i),
+  challengeId: z.string().regex(/^[a-f\d]{24}$/i),
   deviceId: z.string().uuid(),
   publicKey: z.string().min(40).max(400),
   signature: z.string().min(80).max(100),
