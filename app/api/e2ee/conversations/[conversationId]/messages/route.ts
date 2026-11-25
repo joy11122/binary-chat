@@ -1,23 +1,11 @@
 import { NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
-import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth/session";
 import { consumeRateLimit } from "@/lib/auth/rate-limit";
 import { conversationChannel, ensureMessagingIndexes, getAblyRest, isObjectId } from "@/lib/messaging";
+import { encryptedMessageEnvelopeSchema } from "@/lib/e2ee/envelope";
 
 export const runtime = "nodejs";
-
-const MAX_CIPHERTEXT_CHARS = 180_000;
-const sendSchema = z.object({
-  protocol: z.literal("MLS"),
-  version: z.literal(1),
-  clientMessageId: z.string().uuid(),
-  epoch: z.number().int().nonnegative(),
-  ciphertext: z.string()
-    .min(1)
-    .max(MAX_CIPHERTEXT_CHARS)
-    .regex(/^[A-Za-z0-9_-]+$/, "Ciphertext must be unpadded base64url."),
-});
 
 type RouteContext = { params: Promise<{ conversationId: string }> };
 
@@ -101,7 +89,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     const { conversationId } = await context.params;
     const body: unknown = await request.json().catch(() => null);
-    const parsed = sendSchema.safeParse(body);
+    const parsed = encryptedMessageEnvelopeSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid encrypted message envelope." }, { status: 400 });
     }
