@@ -20,6 +20,7 @@ export async function ensureMessagingIndexes() {
     db.collection("messages").createIndex({ conversationId: 1, createdAt: -1 }, { name: "messages_conversation_created" }),
     db.collection("messages").createIndex({ conversationId: 1, senderId: 1, clientMessageId: 1 }, { unique: true, name: "message_idempotency_unique" }),
     db.collection("messages").createIndex({ recipientId: 1, deliveredAt: 1 }, { name: "messages_pending_delivery" }),
+    db.collection("messages").createIndex({ conversationId: 1, recipientId: 1, readAt: 1, createdAt: -1 }, { name: "messages_conversation_unread" }),
   ]);
   return db;
 }
