@@ -50,6 +50,9 @@ export async function GET(request: Request, context: RouteContext) {
     const { conversationId } = await context.params;
     const access = await getMemberContext(conversationId, user.id);
     if (!access) return NextResponse.json({ error: "Conversation not found." }, { status: 404 });
+    if (access.conversation.encryptionMode !== "MLS_V1") {
+      return NextResponse.json({ error: "This conversation is not enabled for MLS encryption." }, { status: 409 });
+    }
 
     const url = new URL(request.url);
     const before = url.searchParams.get("before");
@@ -105,6 +108,9 @@ export async function POST(request: Request, context: RouteContext) {
 
     const access = await getMemberContext(conversationId, user.id);
     if (!access) return NextResponse.json({ error: "Conversation not found." }, { status: 404 });
+    if (access.conversation.encryptionMode !== "MLS_V1") {
+      return NextResponse.json({ error: "This conversation is not enabled for MLS encryption." }, { status: 409 });
+    }
 
     const recipientId = (access.conversation.memberIds as string[]).find((id) => id !== user.id);
     if (!recipientId) return NextResponse.json({ error: "Conversation recipient is unavailable." }, { status: 409 });
