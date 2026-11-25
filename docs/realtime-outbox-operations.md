@@ -6,7 +6,9 @@ MongoDB message documents are the durable outbox records. New messages store a p
 
 - Method/path: `GET /api/internal/realtime-outbox`
 - Authentication: `Authorization: Bearer <CRON_SECRET>`
-- The endpoint claims up to 50 due messages, publishes `message.created` to Ably, and marks successful deliveries.
+- The endpoint claims up to 50 due message and receipt events, publishes them to Ably, and marks successful publishes.
+- Message creation, delivery receipts, and read receipts each have durable pending markers on their MongoDB message documents.
+- Delivery/read receipt state and its pending marker are written together; the worker leases each receipt, publishes it, and clears the marker only after success.
 - Failures are rescheduled with exponential backoff, capped at 15 minutes.
 - A crash after Ably accepts a publish but before MongoDB records success can cause a duplicate event. Clients must deduplicate using the stable message `id` / `clientMessageId`.
 
@@ -23,9 +25,9 @@ GitHub scheduled workflows can be delayed under load; the worker is idempotent a
 ## Operational checks
 
 - Confirm production `ABLY_API_KEY`, `CRON_SECRET`, and MongoDB connectivity.
-- Confirm the `messages_realtime_outbox` index exists.
+- Confirm the `messages_realtime_outbox`, `messages_delivery_receipt_outbox`, and `messages_read_receipt_outbox` indexes exist.
 - Inspect the worker response fields: `attempted`, `published`, and `deferred`.
-- Monitor records with `realtimePending: true`; inspect `realtimeAttempts`, `realtimeNextAttemptAt`, and `realtimeLastError` for repeated failures.
+- Monitor records with `realtimePending: true`, `deliveryReceiptPending: true`, or `readReceiptPending: true`; inspect their corresponding attempt, next-attempt, and last-error fields for repeated failures.
 - Keep history synchronization enabled. MongoDB history remains the source of truth when realtime events are missed.
 
-This worker covers `message.created`. Durable recovery for read and delivered receipt events remains separate work.
+Ably publish delivery is at-least-once: a crash after provider acceptance but before MongoDB clears a pending marker can produce a duplicate. Clients must deduplicate receipt events by message ID. MongoDB history remains the source of truth.
