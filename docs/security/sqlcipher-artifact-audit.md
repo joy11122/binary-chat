@@ -177,7 +177,7 @@ The exact user-supplied archives were retrieved from the user's Library and inde
 - ZIP integrity passed; 260 entries.
 - iOS device arm64 and iOS simulator arm64/x86_64 slices are present; their framework metadata declares minimum iOS 12.0.
 - Additional macOS, Mac Catalyst, tvOS, watchOS, and visionOS variants are present.
-- Code-signature directories and privacy manifests are present, but signature validity/trust was not established. macOS `codesign --verify --deep --strict` was not available in this review environment.
+- Code-signature directories and privacy manifests are present. The top-level `_CodeSignature/CodeSignature` is DER PKCS#7 SignedData and contains an Apple Developer ID Certification Authority intermediate certificate; the CMS signer issuer/serial does not match that included certificate, so the signer leaf identity is not established from the embedded certificate set. Signature validity/trust was not established. macOS `codesign --verify --deep --strict` was not available in this review environment.
 - Full third-party notice inventory remains outstanding.
 
 ### Decision
