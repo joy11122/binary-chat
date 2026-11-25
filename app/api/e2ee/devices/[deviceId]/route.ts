@@ -64,7 +64,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
       revoked: true,
       deviceId,
       revokedAt: now,
-      note: "Server-side device authorization is revoked. Native local-key deletion and MLS group membership updates are not yet implemented.",
+      note: "The device record is marked revoked. E2EE transport does not yet enforce device-bound request signatures, and native key deletion or MLS group membership updates are not implemented; this is not yet effective cryptographic revocation.",
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("E2EE device revocation failed:", error instanceof Error ? error.name : "Unknown error");
