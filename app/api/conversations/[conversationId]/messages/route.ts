@@ -83,6 +83,7 @@ export async function POST(request: Request, context: RouteContext) {
       clientMessageId: parsed.data.clientMessageId,
       text: parsed.data.text,
       createdAt: now,
+      realtimePending: true,
       realtimeNextAttemptAt: now,
       realtimeAttempts: 0,
     };
