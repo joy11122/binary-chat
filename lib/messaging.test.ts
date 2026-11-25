@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { conversationChannel, isObjectId, normalizeMemberKey } from "./messaging-utils";
-import { buildMessageCreatedEvent, realtimeRetryDelayMs } from "./realtime-outbox-utils";
+import { buildMessageCreatedEvent, buildReceiptEvent, realtimeRetryDelayMs } from "./realtime-outbox-utils";
 import { offlineMessageKey } from "./offline-message-queue";
 
 describe("messaging helpers", () => {
@@ -47,6 +47,20 @@ describe("realtime outbox helpers", () => {
       recipientId: "recipient-1",
       createdAt,
       clientMessageId: "client-1",
+    });
+  });
+
+  it("builds durable delivery and read receipt event payloads", () => {
+    const deliveredAt = new Date("2026-11-25T12:01:00.000Z");
+    const readAt = new Date("2026-11-25T12:02:00.000Z");
+    const message = { _id: "message-2", recipientId: "recipient-1", deliveredAt, readAt };
+    expect(buildReceiptEvent("delivery", message)).toEqual({
+      name: "message.delivered",
+      payload: { messageIds: ["message-2"], recipientId: "recipient-1", deliveredAt },
+    });
+    expect(buildReceiptEvent("read", message)).toEqual({
+      name: "message.read",
+      payload: { messageIds: ["message-2"], readerId: "recipient-1", readAt },
     });
   });
 });
