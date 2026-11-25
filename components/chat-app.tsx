@@ -283,14 +283,14 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
         if (!response.ok) throw new Error(data.error ?? "Could not load messages.");
         const messages = (data.messages ?? []).map((item) => ({
           id: item.id, text: item.text, mine: item.senderId === userId, time: formatTime(item.createdAt),
-          createdAt: item.createdAt, delivered: Boolean(item.deliveredAt), read: Boolean(item.readAt),
+          createdAt: item.createdAt, delivered: Boolean(item.deliveredAt), read: Boolean(item.readAt), clientMessageId: item.clientMessageId,
         }));
         if (!cancelled) {
           setChats((current) => current.map((chat) => {
             if (chat.id !== activeConversationId) return chat;
             const pending = chat.messages.filter((message) => message.deliveryStatus === "queued" || message.deliveryStatus === "sending");
-            const ids = new Set(messages.map((message) => message.id));
-            return { ...chat, messages: [...messages, ...pending.filter((message) => !ids.has(message.id))], preview: pending.at(-1)?.text ?? messages.at(-1)?.text ?? "Start a conversation" };
+            const ids = new Set(messages.map((message) => message.clientMessageId ?? message.id));
+            return { ...chat, messages: [...messages, ...pending.filter((message) => !ids.has(message.clientMessageId ?? message.id))], preview: pending.at(-1)?.text ?? messages.at(-1)?.text ?? "Start a conversation" };
           }));
           const unreadIds = (data.messages ?? []).filter((item) => item.senderId !== userId && !item.readAt).map((item) => item.id);
           if (unreadIds.length) {
