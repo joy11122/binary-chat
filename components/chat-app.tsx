@@ -5,10 +5,11 @@ import { useRouter } from "next/navigation";
 import { loadAblyBrowserSdk, type AblyClientMessage, type AblyPresenceMessage, type AblyRealtimeClient } from "@/lib/ably-browser";
 import { Bell, Check, CheckCheck, ChevronDown, CircleHelp, Eye, EyeOff, LockKeyhole, MessageCircle, MoreHorizontal, Plus, Search, Send, Settings2, ShieldCheck, Smile, Sparkles, Wifi, X, LogOut, LoaderCircle, UserRoundPlus, Save, Trash2 } from "lucide-react";
 import { textToBinary } from "@/lib/binary";
+import { enqueueOfflineMessage, listOfflineMessages, removeOfflineMessage, type OfflineQueuedMessage } from "@/lib/offline-message-queue";
 
 type ApiMember = { id: string; phone: string; displayName: string; avatarUrl: string };
 type ApiMessage = { id: string; text: string; senderId: string; recipientId: string; createdAt: string; deliveredAt?: string | null; readAt?: string | null; clientMessageId: string };
-type ChatMessage = { id: string; text: string; time: string; mine: boolean; read?: boolean; delivered?: boolean; createdAt: string; clientMessageId?: string };
+type ChatMessage = { id: string; text: string; time: string; mine: boolean; read?: boolean; delivered?: boolean; createdAt: string; clientMessageId?: string; deliveryStatus?: "queued" | "sending" };
 type Conversation = { id: string; userId: string; name: string; initials: string; color: string; status: string; preview: string; time: string; unread: number; online: boolean; messages: ChatMessage[] };
 type Contact = { id: string; phone: string; displayName: string; avatarUrl: string };
 
@@ -27,6 +28,9 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
   const [loadingChats, setLoadingChats] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
+  const [offlineQueue, setOfflineQueue] = useState<OfflineQueuedMessage[]>([]);
+  const [offlineQueueLoaded, setOfflineQueueLoaded] = useState(false);
+  const [networkRevision, setNetworkRevision] = useState(0);
   const [error, setError] = useState("");
   const [realtimeStatus, setRealtimeStatus] = useState<"connecting" | "connected" | "offline">("connecting");
   const [contactOpen, setContactOpen] = useState(false);
@@ -47,6 +51,7 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
   const realtimeRef = useRef<AblyRealtimeClient | null>(null);
   const subscribedRef = useRef<Set<string>>(new Set());
   const activeIdRef = useRef(activeId);
+  const sendingQueueRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     activeIdRef.current = activeId;
@@ -89,6 +94,70 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
     })();
     return () => { cancelled = true; };
   }, [refreshConversations]);
+
+  useEffect(() => {
+    if (loadingChats || offlineQueueLoaded) return;
+    let cancelled = false;
+    void listOfflineMessages(userId).then((items) => {
+      if (cancelled) return;
+      setOfflineQueue(items);
+      setChats((current) => current.map((chat) => {
+        const restored = items.filter((item) => item.conversationId === chat.id).map((item) => ({
+          id: item.clientMessageId, clientMessageId: item.clientMessageId, text: item.text, mine: true,
+          time: formatTime(item.createdAt), createdAt: item.createdAt, deliveryStatus: "queued" as const,
+        }));
+        const existing = new Set(chat.messages.map((message) => message.clientMessageId ?? message.id));
+        const additions = restored.filter((message) => !existing.has(message.clientMessageId));
+        return additions.length ? { ...chat, messages: [...chat.messages, ...additions], preview: additions.at(-1)?.text ?? chat.preview } : chat;
+      }));
+    }).catch(() => {
+      if (!cancelled) setError("Offline message storage is unavailable. Please keep your draft until storage is restored.");
+    }).finally(() => { if (!cancelled) setOfflineQueueLoaded(true); });
+    return () => { cancelled = true; };
+  }, [loadingChats, offlineQueueLoaded, userId]);
+
+  useEffect(() => {
+    const onOnline = () => setNetworkRevision((value) => value + 1);
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, []);
+
+  async function transmitQueuedMessage(item: OfflineQueuedMessage) {
+    const key = `${item.userId}:${item.conversationId}:${item.clientMessageId}`;
+    if (sendingQueueRef.current.has(key)) return;
+    sendingQueueRef.current.add(key);
+    setChats((current) => current.map((chat) => chat.id === item.conversationId ? {
+      ...chat, messages: chat.messages.map((message) => message.clientMessageId === item.clientMessageId || message.id === item.clientMessageId ? { ...message, deliveryStatus: "sending" } : message),
+    } : chat));
+    try {
+      const response = await fetch(`/api/conversations/${item.conversationId}/messages`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: item.text, clientMessageId: item.clientMessageId }),
+      });
+      const data = await response.json() as { message?: ApiMessage; error?: string };
+      if (!response.ok || !data.message) throw new Error(data.error ?? "Message could not be sent.");
+      await removeOfflineMessage(item);
+      setOfflineQueue((current) => current.filter((queued) => queued.clientMessageId !== item.clientMessageId || queued.conversationId !== item.conversationId));
+      const saved = data.message;
+      setChats((current) => current.map((chat) => chat.id === item.conversationId ? {
+        ...chat, preview: saved.text, time: formatTime(saved.createdAt),
+        messages: chat.messages.map((message) => message.clientMessageId === item.clientMessageId || message.id === item.clientMessageId ? {
+          ...message, id: saved.id, createdAt: saved.createdAt, time: formatTime(saved.createdAt), deliveryStatus: undefined,
+        } : message),
+      } : chat));
+    } catch {
+      setChats((current) => current.map((chat) => chat.id === item.conversationId ? {
+        ...chat, messages: chat.messages.map((message) => message.clientMessageId === item.clientMessageId || message.id === item.clientMessageId ? { ...message, deliveryStatus: "queued" } : message),
+      } : chat));
+    } finally {
+      sendingQueueRef.current.delete(key);
+    }
+  }
+
+  useEffect(() => {
+    if (!offlineQueueLoaded || offlineQueue.length === 0 || !navigator.onLine) return;
+    void Promise.all(offlineQueue.map((item) => transmitQueuedMessage(item)));
+  }, [offlineQueue, offlineQueueLoaded, realtimeStatus, networkRevision]);
 
   useEffect(() => {
     if (!revealedId) return;
@@ -215,7 +284,12 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
           createdAt: item.createdAt, delivered: Boolean(item.deliveredAt), read: Boolean(item.readAt),
         }));
         if (!cancelled) {
-          setChats((current) => current.map((chat) => chat.id === activeConversationId ? { ...chat, messages, preview: messages.at(-1)?.text ?? "Start a conversation" } : chat));
+          setChats((current) => current.map((chat) => {
+            if (chat.id !== activeConversationId) return chat;
+            const pending = chat.messages.filter((message) => message.deliveryStatus === "queued" || message.deliveryStatus === "sending");
+            const ids = new Set(messages.map((message) => message.id));
+            return { ...chat, messages: [...messages, ...pending.filter((message) => !ids.has(message.id))], preview: pending.at(-1)?.text ?? messages.at(-1)?.text ?? "Start a conversation" };
+          }));
           const unreadIds = (data.messages ?? []).filter((item) => item.senderId !== userId && !item.readAt).map((item) => item.id);
           if (unreadIds.length) {
             await fetch(`/api/conversations/${activeConversationId}/messages`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messageIds: unreadIds }) });
@@ -315,25 +389,20 @@ export default function ChatApp({ displayName, userId }: { displayName: string; 
     setSending(true);
     setError("");
     const clientMessageId = crypto.randomUUID();
-    const optimistic: ChatMessage = { id: clientMessageId, clientMessageId, text, time: formatTime(new Date()), createdAt: new Date().toISOString(), mine: true };
+    const createdAt = new Date().toISOString();
+    const queued: OfflineQueuedMessage = { userId, conversationId: activeChat.id, clientMessageId, text, createdAt };
+    try {
+      await enqueueOfflineMessage(queued);
+    } catch {
+      setError("Could not safely save this message for retry. Your draft has been kept.");
+      return;
+    }
+    setOfflineQueue((current) => [...current, queued]);
+    const optimistic: ChatMessage = { id: clientMessageId, clientMessageId, text, time: formatTime(new Date()), createdAt, mine: true, deliveryStatus: "queued" };
     setChats((current) => current.map((chat) => chat.id === activeChat.id ? { ...chat, preview: text, time: optimistic.time, messages: [...chat.messages, optimistic] } : chat));
     setDraft("");
     try {
-      const response = await fetch(`/api/conversations/${activeConversationId}/messages`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text, clientMessageId }),
-      });
-      const data = await response.json() as { message?: ApiMessage; error?: string };
-      if (!response.ok || !data.message) throw new Error(data.error ?? "Message could not be sent.");
-      const saved = data.message;
-      setChats((current) => current.map((chat) => chat.id === activeChat.id ? {
-        ...chat, messages: chat.messages.map((message) => message.id === clientMessageId ? {
-          ...message, id: saved.id, createdAt: saved.createdAt, time: formatTime(saved.createdAt),
-        } : message),
-      } : chat));
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Message could not be sent.");
-      setChats((current) => current.map((chat) => chat.id === activeChat.id ? { ...chat, messages: chat.messages.filter((message) => message.id !== clientMessageId) } : chat));
-      setDraft(text);
+      await transmitQueuedMessage(queued);
     } finally {
       setSending(false);
     }
